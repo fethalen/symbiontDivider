@@ -1,45 +1,58 @@
 #!/usr/bin/env nextflow
 
-data = Channel.fromPath('/home/cmau/pipeline/sample_data/*.fastq')
+params.reads = '/home/cmau/pipeline/sample_data/*_{1,2}.fastq'
+params.genome = '/home/cmau/pipeline/sample_data/GCA_003671365.1_ASM367136v1_cds_from_genomic.fna'
+
+
+Channel.fromFilePairs( params.reads )
+       .ifEmpty{error "Cannot find files"}
+       .set { data }
+
 
 process trimming_and_qc {
 
+    tag "$name"
+
     input:
-    file sample from data
+    tuple val(name), file(reads) from data
 
     output:
-    file '*.fq' into trimmed
+    tuple val(name), file('*.fq') into trimmed
     file '*.html' into quality
 
     script:
     """
 
-    trim_galore $sample --fastqc --cores 4
+    trim_galore --paired --fastqc --cores 8 ${reads[0]} ${reads[1]}
 
     """
 }
 
-trimmed.view{it.name}
+/*trimmed.view{it.name}
 quality.view{it.name}
-
-/*
+*/
 
 process endosymbiont_mapping {
 
+    tag "$name"
+
     input:
-    file sample from trimmed
+    tuple val(name), file(reads) from trimmed
+    path genome from params.genome
 
     output:
-    file '*' into mapped
+    file '*.sam' into mapped
+    file '*.txt' into coverage_assess
 
     script:
     """
-    bowtie2-build GCA_003671365.1_ASM367136v1_cds_from_genomic.fna wolbachia
+    bowtie2-build ${genome} wolbachia
     bowtie2-inspect -n wolbachia
-    bowtie2 -x wolbachia -1 NG-23851_Marta2_lib377150_6660_2_1.fastq -2 NG-23851_Marta2_lib377150_6660_2_2.fastq -S sample.sam --very-sensitive > bowtie_output.txt
+    bowtie2 -x wolbachia -p 8 -1 ${reads[0]} -2 ${reads[1]} -S ${name}.sam --very-sensitive > ${name}.txt
     """
 
 }
+/*
 
 process coverage_size_est {
 
