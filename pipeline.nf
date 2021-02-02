@@ -42,7 +42,7 @@ process endosymbiont_mapping {
 
     output:
     file '*.sam' into mapped
-    file '*.txt' into coverage_assess
+    file '.command.log' into coverage_assess
 
     script:
     """
@@ -51,6 +51,44 @@ process endosymbiont_mapping {
     bowtie2 -x wolbachia -p 8 -1 ${reads[0]} -2 ${reads[1]} -S ${name}.sam --very-sensitive > ${name}.txt
     """
 
+}
+
+
+process read_filtering {
+    
+    tag "$name"
+
+    input:
+    file mapped from mapped
+
+    output:
+    file 'mapped_N*.sam' into endosym
+    file 'mapped_host_*.sam' into host
+
+
+    script:
+    """
+
+    samtools view -h -F 4 $mapped > mapped_${mapped}
+    samtools view -h -f 4 $mapped > mapped_host_${mapped}
+
+    """
+}
+
+process assembly {
+
+    input:
+    file mapped_endosym from endosym
+    file mapped_host from host
+
+
+    script:
+    """
+
+    abyss-pe np=8 name=marta2_endosym k=96 in='$mapped_endosym' B=10G H=3 kc=3 v=-v
+    abyss-pe np=8 name=marta2_host k=96 in='$mapped_host' B=10G H=3 kc=3 v=-v
+
+    """
 }
 /*
 
@@ -61,20 +99,6 @@ process coverage_size_est {
 
     output:
     file '*' into quality
-
-    script:
-    """
-    """
-
-}
-
-process assembly {
-
-    input:
-    file sample from mapped
-
-    output:
-    file '*' into assembled
 
     script:
     """
