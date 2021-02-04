@@ -8,12 +8,12 @@ An easy to use pipeline to separate endosymbiont genomes from their host's
 2. Read mapping using bowtie2
 3. Read filtering using samtools
 4. Assembly of endosymbiont and host genome using ABySS
+5. Assembly quality assessment using BUSCO
 
 
 ## ToDo
 
 - Coverage size estimate
-- Assembly quality assessment
 - Visualisation of quality
 - Compression for long time storage
 - Input file management
