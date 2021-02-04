@@ -142,19 +142,6 @@ process coverage_size_est {
 
 }
 /*
-process assembly {
-
-    input:
-    file sample from mapped
-
-    output:
-    file '*' into assembled
-
-    script:
-    """
-    """
-
-}
 
 process assembly_quality {
 
