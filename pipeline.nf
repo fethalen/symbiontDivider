@@ -88,7 +88,7 @@ process endosymbiont_assembly {
     tuple val(name), file(filtered) from endosym_filtered
 
     output:
-    file '*scaffolds.fa'
+    tuple val(name), file('*scaffolds.fa') into endosym_assembled
 
     script:
     """
@@ -107,7 +107,7 @@ process host_assembly {
     tuple val(name), file(filtered) from host_filtered
 
     output:
-    file '*scaffolds.fa'
+    tuple val(name), file('*scaffolds.fa') into host_assembled
 
     script:
     """
@@ -117,43 +117,44 @@ process host_assembly {
     """
 
 }
-/*
-process coverage_size_est {
+
+
+process endosymbiont_assembly_quality {
+
+    tag "$name"
 
     input:
-    file mapping_log from coverage_assess
+    tuple val(name), file(endosym) from endosym_assembled
 
     output:
-    file '*.txt' into test
+    file '*'
 
     script:
     """
-    #!/usr/bin/env python3
+    busco -i $endosym -m genome -o $name --auto-lineage-prok
 
-    log = open('${mapping_log}', 'r')
-    lines = log.readlines()
-    f = open('test.txt', 'w')
-    print('test')
+    """
+
+}
+
+process host_assembly_quality {
+
+    tag "$name"
+
+    input:
+    tuple val(name), file(host) from host_assembled
+
+    output:
+    file '*'
+
+    script:
+    """
+    busco -i $host -m genome -o $name --auto-lineage-euk
 
     """
 
 }
 /*
-
-process assembly_quality {
-
-    input:
-    file sample from assembled
-
-    output:
-    file '*' into quality
-
-    script:
-    """
-    """
-
-}
-
 process compression {
 
     input:
