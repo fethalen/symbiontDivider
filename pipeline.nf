@@ -28,9 +28,6 @@ process trimming_and_qc {
     """
 }
 
-/*trimmed.view{it.name}
-quality.view{it.name}
-*/
 
 process mapping {
 
