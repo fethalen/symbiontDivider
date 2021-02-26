@@ -196,6 +196,17 @@ process host_assembly_quality {
 
 }
 /*
+process coverage_estimate {
+
+    input:
+    file genome
+
+    script:
+    """
+    grep -v ">" genome | perl -pe "s/\n//g" | wc -c | bin/coverage_estimate.py
+    """
+}
+
 process compression {
 
     input:
