@@ -1,6 +1,9 @@
 # symbiontDivider
 An easy to use pipeline to separate endosymbiont genomes from their host's
 
+## Version
+
+0.0.1
 
 ## Status
 
@@ -22,4 +25,3 @@ An easy to use pipeline to separate endosymbiont genomes from their host's
 - Docker release
 - Config file
 - Manual page
-- Version number
