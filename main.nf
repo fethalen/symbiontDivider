@@ -1,12 +1,54 @@
 #!/usr/bin/env nextflow
 
-params.reads = '/home/cmau/pipeline/sample_data/*_{1,2}.fastq'
-params.genome = '/home/cmau/pipeline/sample_data/GCA_003671365.1_ASM367136v1_cds_from_genomic.fna'
-params.host_genome= '/home/cmau/pipeline/sample_data/GCA_001015115.1_ASM101511v1_genomic.fna'  //better host genome desperately needed
+nextflow.enable.dsl=2
 
-Channel.fromFilePairs( params.reads )
-       .ifEmpty{error "Cannot find files"}
-       .set { data }
+
+def helpMessage() {
+    log.info"""
+    Empty
+    """.stripIndent()
+}
+
+def versionNumber() {
+    log.info"symbionDivider ~ version $workflow.manifest.version"
+}
+
+// Display the version number on request
+if ( params.version ) exit 0, versionNumber()
+
+// Display a help message upon request
+if ( params.help ) exit 0, helpMessage()
+
+// Input validation
+if ( params.reads == null) {
+    exit 1, "Missing mandatory argument '--reads'\n" +
+            "Launch this workflow with '--help' for more info"
+}
+
+if ( params.symbiont_reference == null) {
+    exit 1, "Missing mandatory argument '--symbiont_reference'\n" +
+            "Launch this workflow with '--help' for more info"
+}
+
+if ( params.host_reference == null) {
+    exit 1, "Missing mandatory argument '--host_reference'\n" +
+            "Launch this workflow with '--help' for more info"
+}
+
+rawReads = Channel
+    .fromFilePairs( params.reads, size: 2, type: 'file' )
+    .filter { it =~/.*\.fastq\.gz|.*\.fq\.gz|.*\.fastq|.*\.fq/ }
+    .ifEmpty { exit 1,
+             "No FASTQ files found with pattern '${params.reads}'\n" +
+             "Escape dots ('.') with a backslash character ('\\')\n" +
+             "Try enclosing the path in single-quotes (')\n" +
+             "Valid file types: '.fastq.gz', '.fq.gz', '.fastq', or '.fq'" }
+
+endosymbionReference = Channel
+    .fromPath( params.symbiont_reference, type: 'file')
+
+hostReference = Channel
+    .fromPath( params.host_reference, type: 'file')
 
 
 process trimming_and_qc {
@@ -14,11 +56,10 @@ process trimming_and_qc {
     tag "$name"
 
     input:
-    tuple val(name), file(reads) from data
+    tuple val(name), file(reads)
 
     output:
-    tuple val(name), file('*.fq') into trimmed
-    file '*.html' into quality
+    tuple val(name), file('*.fq')
 
     script:
     """
@@ -34,22 +75,22 @@ process mapping {
     tag "$name"
 
     input:
-    tuple val(name), file(reads) from trimmed
-    path endosym_genome from params.genome
-    path host_genome from params.host_genome
+    tuple val(name), file(reads)
+    file symbiont_reference
+    file host_reference
 
     output:
-    tuple val(name), file('*_endosym.sam') into endosym_mapped
-    tuple val(name), file('*_host.sam') into host_mapped
+    tuple val(name), file('*_endosym.sam'), emit: endosym_mapped
+    tuple val(name), file('*_host.sam'), emit: host_mapped
 
     script:
     """
-    bowtie2-build ${endosym_genome} wolbachia
+    bowtie2-build ${symbiont_reference} wolbachia
     bowtie2-inspect -n wolbachia
     bowtie2 -x wolbachia -p 8 -1 ${reads[0]} -2 ${reads[1]} -S ${name}_endosym.sam --very-sensitive
 
 
-    bowtie2-build ${host_genome} host
+    bowtie2-build ${host_reference} host
     bowtie2-inspect -n host
     bowtie2 -x host -p 8 -1 ${reads[0]} -2 ${reads[1]} -S ${name}_host.sam --very-sensitive
     """
@@ -62,12 +103,12 @@ process read_filtering {
     tag "$name"
 
     input:
-    tuple val(name), file(endosym_mapped) from endosym_mapped
-    tuple val(name_host), file(host_mapped) from host_mapped
+    tuple val(name), file(endosym_mapped)
+    tuple val(name_host), file(host_mapped)
 
     output:
-    tuple val(name), file('*_endosym.sam') into endosym_filtered
-    tuple val(name), file('*_host.sam') into host_filtered
+    tuple val(name), file('*_endosym.sam'), emit: endosym_filtered
+    tuple val(name), file('*_host.sam'), emit: host_filtered
 
 
     script:
@@ -85,10 +126,10 @@ process endosymbiont_assembly {
     tag "$name"
 
     input:
-    tuple val(name), file(filtered) from endosym_filtered
+    tuple val(name), file(filtered)
 
     output:
-    tuple val(name), file('*scaffolds.fa') into endosym_assembled
+    tuple val(name), file('*scaffolds.fa'), emit: endosym_assembled
 
     script:
     """
@@ -104,10 +145,10 @@ process host_assembly {
     tag "$name"
 
     input:
-    tuple val(name), file(filtered) from host_filtered
+    tuple val(name), file(filtered)
 
     output:
-    tuple val(name), file('*scaffolds.fa') into host_assembled
+    tuple val(name), file('*scaffolds.fa'), emit: host_assembled
 
     script:
     """
@@ -124,7 +165,7 @@ process endosymbiont_assembly_quality {
     tag "$name"
 
     input:
-    tuple val(name), file(endosym) from endosym_assembled
+    tuple val(name), file(endosym)
 
     output:
     file '*'
@@ -142,14 +183,14 @@ process host_assembly_quality {
     tag "$name"
 
     input:
-    tuple val(name), file(host) from host_assembled
+    tuple val(name), file(host)
 
     output:
     file '*'
 
     script:
     """
-    busco -i $host -m genome -o $name --auto-lineage-euk
+    busco -i $host -m genome -o $name --auto-lineage
 
     """
 
@@ -184,3 +225,12 @@ process visualise_quality {
 
 
 */
+workflow {
+    trimming_and_qc(rawReads)
+    mapping(trimming_and_qc.out, endosymbionReference, hostReference)
+    read_filtering(mapping.out.endosym_mapped, mapping.out.host_mapped)
+    endosymbiont_assembly(read_filtering.out.endosym_filtered)
+    host_assembly(read_filtering.out.host_filtered)
+    endosymbiont_assembly_quality(endosymbiont_assembly.out.endosym_assembled)
+    host_assembly_quality(host_assembly.out.host_assembled)
+}
