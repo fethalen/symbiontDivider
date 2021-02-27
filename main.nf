@@ -69,30 +69,41 @@ process trimming_and_qc {
     """
 }
 
-
-process mapping {
+process symbiont_mapping {
 
     tag "$name"
 
     input:
     tuple val(name), file(reads)
     file symbiont_reference
-    file host_reference
 
     output:
     tuple val(name), file('*_endosym.sam'), emit: endosym_mapped
+
+    script:
+    """
+    bowtie2-build ${symbiont_reference} symbiont
+    bowtie2-inspect -n symbiont
+    bowtie2 -x symbiont -p ${params.threads/2} -1 ${reads[0]} -2 ${reads[1]} -S ${name}_endosym.sam --very-sensitive
+    """
+}
+
+process host_mapping {
+
+    tag "$name"
+
+    input:
+    tuple val(name), file(reads)
+    file host_reference
+
+    output:
     tuple val(name), file('*_host.sam'), emit: host_mapped
 
     script:
     """
-    bowtie2-build ${symbiont_reference} wolbachia
-    bowtie2-inspect -n wolbachia
-    bowtie2 -x wolbachia -p 8 -1 ${reads[0]} -2 ${reads[1]} -S ${name}_endosym.sam --very-sensitive
-
-
     bowtie2-build ${host_reference} host
     bowtie2-inspect -n host
-    bowtie2 -x host -p 8 -1 ${reads[0]} -2 ${reads[1]} -S ${name}_host.sam --very-sensitive
+    bowtie2 -x host -p ${params.threads/2} -1 ${reads[0]} -2 ${reads[1]} -S ${name}_host.sam --very-sensitive
     """
 
 }
@@ -204,9 +215,9 @@ process coverage_estimate {
     script:
     """
     grep -v ">" genome | perl -pe "s/\n//g" | wc -c | bin/coverage_estimate.py
+
     """
 }
-
 process compression {
 
     input:
@@ -238,10 +249,25 @@ process visualise_quality {
 */
 workflow {
     trimming_and_qc(rawReads)
-    mapping(trimming_and_qc.out, endosymbionReference, hostReference)
-    read_filtering(mapping.out.endosym_mapped, mapping.out.host_mapped)
+    symbiont_mapping(trimming_and_qc.out, endosymbionReference)
+    host_mapping(trimming_and_qc.out, hostReference)
+    read_filtering(symbiont_mapping.out.endosym_mapped, host_mapping.out.host_mapped)
     endosymbiont_assembly(read_filtering.out.endosym_filtered)
     host_assembly(read_filtering.out.host_filtered)
     endosymbiont_assembly_quality(endosymbiont_assembly.out.endosym_assembled)
     host_assembly_quality(host_assembly.out.host_assembled)
+}
+
+workflow.onComplete {
+    // Display complete message
+    log.info "Completed at: " + workflow.complete
+    log.info "Duration    : " + workflow.duration
+    log.info "Success     : " + workflow.success
+    log.info "Exit status : " + workflow.exitStatus
+}
+
+workflow.onError {
+    // Display error message
+    log.info "Workflow execution stopped with the following message:"
+    log.info "  " + workflow.errorMessage
 }
