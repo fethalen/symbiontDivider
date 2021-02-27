@@ -10,7 +10,7 @@ def helpMessage() {
 }
 
 def versionNumber() {
-    log.info"symbionDivider ~ version $workflow.manifest.version"
+    log.info"symbiontDivider ~ version $workflow.manifest.version"
 }
 
 // Display the version number on request
