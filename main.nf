@@ -133,6 +133,7 @@ process read_filtering {
 
 
 process endosymbiont_assembly {
+    publishDir "${params.output}/symbiont"
 
     tag "$name"
 
@@ -141,6 +142,9 @@ process endosymbiont_assembly {
 
     output:
     tuple val(name), file('*scaffolds.fa'), emit: endosym_assembled
+
+    when:
+    ! params.skip_symbiont_assembly
 
     script:
     """
@@ -152,6 +156,7 @@ process endosymbiont_assembly {
 
 
 process host_assembly {
+    publishDir "${params.output}/host"
 
     tag "$name"
 
@@ -160,6 +165,9 @@ process host_assembly {
 
     output:
     tuple val(name), file('*scaffolds.fa'), emit: host_assembled
+
+    when:
+    ! params.skip_host_assembly
 
     script:
     """
@@ -172,6 +180,7 @@ process host_assembly {
 
 
 process endosymbiont_assembly_quality {
+    publishDir "${params.output}/symbiont"
 
     tag "$name"
 
@@ -180,6 +189,9 @@ process endosymbiont_assembly_quality {
 
     output:
     file '*'
+
+    when:
+    ! params.skip_assembly_quality && ! params.skip_symbiont_assembly
 
     script:
     """
@@ -190,6 +202,8 @@ process endosymbiont_assembly_quality {
 }
 
 process host_assembly_quality {
+    publishDir "${params.output}/host"
+
 
     tag "$name"
 
@@ -198,6 +212,9 @@ process host_assembly_quality {
 
     output:
     file '*'
+
+    when:
+    ! params.skip_assembly_quality && ! params.skip_host_assembly
 
     script:
     """
