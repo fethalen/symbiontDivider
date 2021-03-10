@@ -64,7 +64,7 @@ process trimming_and_qc {
     script:
     """
 
-    trim_galore --paired --fastqc --cores 8 ${reads[0]} ${reads[1]}
+    trim_galore --paired --fastqc --cores ${params.threads} ${reads[0]} ${reads[1]}
 
     """
 }
@@ -99,6 +99,9 @@ process host_mapping {
     output:
     tuple val(name), file('*_host.sam'), emit: host_mapped
 
+    when:
+    ! params.symbiont_only
+
     script:
     """
     bowtie2-build ${host_reference} host
@@ -109,28 +112,46 @@ process host_mapping {
 }
 
 
-process read_filtering {
+process symbiont_read_filtering {
     
     tag "$name"
 
     input:
     tuple val(name), file(endosym_mapped)
-    tuple val(name_host), file(host_mapped)
 
     output:
     tuple val(name), file('*_endosym.sam'), emit: endosym_filtered
-    tuple val(name), file('*_host.sam'), emit: host_filtered
 
 
     script:
     """
 
     samtools view -h -F 4 $endosym_mapped > mapped_${endosym_mapped}
-    samtools view -h -F 4 $host_mapped > mapped_${host_mapped}
 
     """
 }
 
+process host_read_filtering {
+    
+    tag "$name"
+
+    input:
+    tuple val(name_host), file(host_mapped)
+
+    output:
+    tuple val(name_host), file('*_host.sam'), emit: host_filtered
+
+    when:
+    ! params.symbiont_only
+
+
+    script:
+    """
+
+    samtools view -h -F 4 $host_mapped > mapped_${host_mapped}
+
+    """
+}
 
 process endosymbiont_assembly {
     publishDir "${params.output}/symbiont"
@@ -149,7 +170,7 @@ process endosymbiont_assembly {
     script:
     """
 
-    abyss-pe np=4 name=marta2_endosym k=96 in='$filtered' B=5G H=3 kc=3 v=-v
+    abyss-pe np=${params.threads/2} name=marta2_endosym k=96 in='$filtered' B=${params.memory/2}G H=3 kc=3 v=-v
 
     """
 }
@@ -167,12 +188,12 @@ process host_assembly {
     tuple val(name), file('*scaffolds.fa'), emit: host_assembled
 
     when:
-    ! params.skip_host_assembly
+    ! params.skip_host_assembly && ! params.symbiont_only
 
     script:
     """
 
-    abyss-pe np=4 name=marta2_host k=96 in='$filtered' B=5G H=3 kc=3 v=-v
+    abyss-pe np=${params.threads/2} name=marta2_host k=96 in='$filtered' B=${params.memory/2}G H=3 kc=3 v=-v
 
     """
 
@@ -214,7 +235,7 @@ process host_assembly_quality {
     file '*'
 
     when:
-    ! params.skip_assembly_quality && ! params.skip_host_assembly
+    ! params.skip_assembly_quality && ! params.skip_host_assembly && ! params.symbiont_only
 
     script:
     """
@@ -268,9 +289,10 @@ workflow {
     trimming_and_qc(rawReads)
     symbiont_mapping(trimming_and_qc.out, endosymbionReference)
     host_mapping(trimming_and_qc.out, hostReference)
-    read_filtering(symbiont_mapping.out.endosym_mapped, host_mapping.out.host_mapped)
-    endosymbiont_assembly(read_filtering.out.endosym_filtered)
-    host_assembly(read_filtering.out.host_filtered)
+    symbiont_read_filtering(symbiont_mapping.out.endosym_mapped)
+    host_read_filtering(host_mapping.out.host_mapped)
+    endosymbiont_assembly(symbiont_read_filtering.out.endosym_filtered)
+    host_assembly(host_read_filtering.out.host_filtered)
     endosymbiont_assembly_quality(endosymbiont_assembly.out.endosym_assembled)
     host_assembly_quality(host_assembly.out.host_assembled)
 }
