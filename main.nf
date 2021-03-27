@@ -265,7 +265,7 @@ process endosymbiont_assembly_quality {
 
     script:
     """
-    busco -i $endosym -m genome -o $name --auto-lineage-prok
+    busco -c ${params.threads/2} -i $endosym -m genome -o $name --auto-lineage-prok
 
     """
 
@@ -288,7 +288,7 @@ process host_assembly_quality {
 
     script:
     """
-    busco -i $host -m genome -o $name --auto-lineage-euk
+    busco -c ${params.threads/2} -i $host -m genome -o $name --auto-lineage-euk
 
     """
 
