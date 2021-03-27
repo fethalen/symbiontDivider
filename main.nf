@@ -5,7 +5,58 @@ nextflow.enable.dsl=2
 
 def helpMessage() {
     log.info"""
-    Empty
+    Description:
+    An easy to use pipeline to separate endosymbiont genomes from their host's
+
+    Pipeline summary:
+    1. Trimming using Trimmomatic
+    2. Quality Control using FastQC
+    3. Mapping of endosymbiont reads on reference genome using bowtie2
+    4. Filtering the mpped reads using samtools
+    5. Assembly of endosymbiont genome using ABySS
+    6. Assembly of host genome using ABySS
+    7. Assembly quality assesment using BUSCO
+
+    Usage:
+        nextflow run main.nf --reads '*_R{1,2}\\.fastq.gz' --endosymbiont_reference '*_endosymRef\\.fna' --host_reference '*_hostRef\\.fna'
+        
+    Mandatory arguments:
+        --reads             path to one or more sets of paired-ended reads (valid
+                            file types: .fastq.gz', '.fq.gz', '.fastq', or '.fq')
+        --endosymbiont_reference
+                            path to one or more reference genomes for the endosymbiont
+                            assembly (valid file types: '.fna')
+        --host_reference
+                            path to one or more reference genomes for the host assembly
+                            (valid file types: '.fna')
+
+    Input/output options:
+        --output            path to a directory which the results are written to
+                            (default: $params.output)
+
+    Resource allocation:
+        --memory            memory limit for the assembly step in GB (default:
+                            $params.memory)
+        --threads           maximum number of threads to be used by the pipeline
+                            (default: '$params.threads')
+
+    Flow control:
+        --endosymbiont_only
+                            skip processing of reads not belonging to the endosymbiont (default: $params.endosymbiont_only)
+        --skip_coverage     skip coverage estimate step (default: $params.skip_coverage)
+        --skip_trimming     skip trimming step (default: $params.skip_trimming)
+        --skip_qc           skip reads quality assessment (default: $params.skip_qc)
+        --skip_endosymbiont_assembly
+                            skip endosymbiont assembly step (default: $params.skip_endosymbiont_assembly)
+        --skip_host_assembly
+                            skip host assembly step (default: $params.skip_host_assembly)
+                           
+        --skip_assembly_quality
+                            skip assembly quality assessment (default: $params.skip_assembly_quality)
+
+    Miscellaneous:
+        --help              display this help message and exit
+        --version           display the pipeline's version number and exit
     """.stripIndent()
 }
 
@@ -25,8 +76,8 @@ if ( params.reads == null) {
             "Launch this workflow with '--help' for more info"
 }
 
-if ( params.symbiont_reference == null) {
-    exit 1, "Missing mandatory argument '--symbiont_reference'\n" +
+if ( params.endosymbiont_reference == null) {
+    exit 1, "Missing mandatory argument '--endosymbiont_reference'\n" +
             "Launch this workflow with '--help' for more info"
 }
 
@@ -44,10 +95,10 @@ rawReads = Channel
              "Try enclosing the path in single-quotes (')\n" +
              "Valid file types: '.fastq.gz', '.fq.gz', '.fastq', or '.fq'" }
 
-endosymbionReference = Channel
-    .fromPath( params.symbiont_reference, type: 'file')
+endosymbiont_reference = Channel
+    .fromPath( params.endosymbiont_reference, type: 'file')
 
-hostReference = Channel
+host_reference = Channel
     .fromPath( params.host_reference, type: 'file')
 
 
@@ -69,22 +120,22 @@ process trimming_and_qc {
     """
 }
 
-process symbiont_mapping {
+process endosymbiont_mapping {
 
     tag "$name"
 
     input:
     tuple val(name), file(reads)
-    file symbiont_reference
+    file endosymbiont_reference
 
     output:
     tuple val(name), file('*_endosym.sam'), emit: endosym_mapped
 
     script:
     """
-    bowtie2-build ${symbiont_reference} symbiont
-    bowtie2-inspect -n symbiont
-    bowtie2 -x symbiont -p ${params.threads/2} -1 ${reads[0]} -2 ${reads[1]} -S ${name}_endosym.sam --very-sensitive
+    bowtie2-build ${endosymbiont_reference} endosymbiont
+    bowtie2-inspect -n endosymbiont
+    bowtie2 -x endosymbiont -p ${params.threads/2} -1 ${reads[0]} -2 ${reads[1]} -S ${name}_endosym.sam --very-sensitive
     """
 }
 
@@ -100,7 +151,7 @@ process host_mapping {
     tuple val(name), file('*_host.sam'), emit: host_mapped
 
     when:
-    ! params.symbiont_only
+    ! params.endosymbiont_only
 
     script:
     """
@@ -112,7 +163,7 @@ process host_mapping {
 }
 
 
-process symbiont_read_filtering {
+process endosymbiont_read_filtering {
     
     tag "$name"
 
@@ -126,7 +177,7 @@ process symbiont_read_filtering {
     script:
     """
 
-    samtools view -h -F 4 $endosym_mapped > mapped_${endosym_mapped}
+    samtools view -@ ${params.threads/2} -h -F 4 $endosym_mapped > mapped_${endosym_mapped}
 
     """
 }
@@ -136,25 +187,25 @@ process host_read_filtering {
     tag "$name"
 
     input:
-    tuple val(name_host), file(host_mapped)
+    tuple val(name), file(host_mapped)
 
     output:
-    tuple val(name_host), file('*_host.sam'), emit: host_filtered
+    tuple val(name), file('*_host.sam'), emit: host_filtered
 
     when:
-    ! params.symbiont_only
+    ! params.endosymbiont_only
 
 
     script:
     """
 
-    samtools view -h -F 4 $host_mapped > mapped_${host_mapped}
+    samtools view -@ ${params.threads/2} -h -F 4 $host_mapped > mapped_${host_mapped}
 
     """
 }
 
 process endosymbiont_assembly {
-    publishDir "${params.output}/symbiont"
+    publishDir "${params.output}/endosymbiont"
 
     tag "$name"
 
@@ -165,7 +216,7 @@ process endosymbiont_assembly {
     tuple val(name), file('*scaffolds.fa'), emit: endosym_assembled
 
     when:
-    ! params.skip_symbiont_assembly
+    ! params.skip_endosymbiont_assembly
 
     script:
     """
@@ -188,20 +239,18 @@ process host_assembly {
     tuple val(name), file('*scaffolds.fa'), emit: host_assembled
 
     when:
-    ! params.skip_host_assembly && ! params.symbiont_only
+    ! params.skip_host_assembly && ! params.endosymbiont_only
 
     script:
     """
-
-    abyss-pe np=${params.threads/2} name=marta2_host k=96 in='$filtered' B=${params.memory/2}G H=3 kc=3 v=-v
-
+    abyss-pe np=${params.threads/2} name=${name}_host k=96 in='$filtered' B=${params.memory/2}G H=3 kc=3 v=-v
     """
 
 }
 
 
 process endosymbiont_assembly_quality {
-    publishDir "${params.output}/symbiont"
+    publishDir "${params.output}/endosymbiont"
 
     tag "$name"
 
@@ -212,7 +261,7 @@ process endosymbiont_assembly_quality {
     file '*'
 
     when:
-    ! params.skip_assembly_quality && ! params.skip_symbiont_assembly
+    ! params.skip_assembly_quality && ! params.skip_endosymbiont_assembly
 
     script:
     """
@@ -235,11 +284,11 @@ process host_assembly_quality {
     file '*'
 
     when:
-    ! params.skip_assembly_quality && ! params.skip_host_assembly && ! params.symbiont_only
+    ! params.skip_assembly_quality && ! params.skip_host_assembly && ! params.endosymbiont_only
 
     script:
     """
-    busco -i $host -m genome -o $name --auto-lineage
+    busco -i $host -m genome -o $name --auto-lineage-euk
 
     """
 
@@ -252,7 +301,7 @@ process coverage_estimate {
 
     script:
     """
-    grep -v ">" genome | perl -pe "s/\n//g" | wc -c | bin/coverage_estimate.py
+    grep -v ">" genome | tr -d "\n" | wc -c | python3 bin/coverage_estimate.py
 
     """
 }
@@ -287,13 +336,21 @@ process visualise_quality {
 */
 workflow {
     trimming_and_qc(rawReads)
-    symbiont_mapping(trimming_and_qc.out, endosymbionReference)
-    host_mapping(trimming_and_qc.out, hostReference)
-    symbiont_read_filtering(symbiont_mapping.out.endosym_mapped)
+
+    endosymbiont_mapping(trimming_and_qc.out, endosymbiont_reference)
+
+    host_mapping(trimming_and_qc.out, host_reference)
+
+    endosymbiont_read_filtering(endosymbiont_mapping.out.endosym_mapped)
+
     host_read_filtering(host_mapping.out.host_mapped)
-    endosymbiont_assembly(symbiont_read_filtering.out.endosym_filtered)
+
+    endosymbiont_assembly(endosymbiont_read_filtering.out.endosym_filtered)
+    
     host_assembly(host_read_filtering.out.host_filtered)
+    
     endosymbiont_assembly_quality(endosymbiont_assembly.out.endosym_assembled)
+    
     host_assembly_quality(host_assembly.out.host_assembled)
 }
 
