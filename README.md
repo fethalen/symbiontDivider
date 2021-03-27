@@ -16,10 +16,10 @@ An easy to use pipeline to separate endosymbiont genomes from their host's
 
 ## ToDo
 
+- Divide Trimmung from QC
+- Assembling host genome de novo option
 - Coverage size estimate
 - Visualisation of quality
 - Compression for long time storage
-- Input file management
-- CPU Core management
+- (CPU Core management)
 - Docker release
-- Manual page
