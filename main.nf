@@ -101,7 +101,7 @@ endosymbiont_reference = Channel
 host_reference = Channel
     .fromPath( params.host_reference, type: 'file')
 
-
+/*
 process trimming_and_qc {
 
     tag "$name"
@@ -119,6 +119,63 @@ process trimming_and_qc {
 
     """
 }
+*/
+process raw_qc {
+
+    tag "$name"
+
+    input:
+    tuple val(name), file(reads)
+
+    when:
+    ! skip_qc
+
+    script:
+    """
+
+    fastqc --threads ${params.threads/2} --quiet ${reads[0]} ${reads[1]}
+
+    """
+
+}
+
+process trimming {
+
+    tag "$name"
+
+    input:
+    tuple val(name), file(reads)
+
+    output:
+    tuple val(name), file('*.fq'), emit: trimmed_reads
+
+    script:
+    """
+
+    trim_galore --paired --cores ${params.threads/2} ${reads[0]} ${reads[1]}
+
+    """
+
+}
+
+process trimmed_qc {
+
+    tag "$name"
+
+    input:
+    tuple val(name), file(reads)
+
+    when:
+    ! skip_qc
+
+    script:
+    """
+
+    fastqc --threads ${params.threads/2} --quiet ${reads[0]} ${reads[1]}
+
+    """
+
+}
 
 process endosymbiont_mapping {
 
@@ -134,7 +191,6 @@ process endosymbiont_mapping {
     script:
     """
     bowtie2-build ${endosymbiont_reference} endosymbiont
-    bowtie2-inspect -n endosymbiont
     bowtie2 -x endosymbiont -p ${params.threads/2} -1 ${reads[0]} -2 ${reads[1]} -S ${name}_endosym.sam --very-sensitive
     """
 }
@@ -156,7 +212,6 @@ process host_mapping {
     script:
     """
     bowtie2-build ${host_reference} host
-    bowtie2-inspect -n host
     bowtie2 -x host -p ${params.threads/2} -1 ${reads[0]} -2 ${reads[1]} -S ${name}_host.sam --very-sensitive
     """
 
@@ -335,11 +390,17 @@ process visualise_quality {
 
 */
 workflow {
-    trimming_and_qc(rawReads)
+    // trimming_and_qc(rawReads)
 
-    endosymbiont_mapping(trimming_and_qc.out, endosymbiont_reference)
+    raw_qc(rawReads)
 
-    host_mapping(trimming_and_qc.out, host_reference)
+    trimming(rawReads)
+
+    trimmed_qc(trimming.out)
+
+    endosymbiont_mapping(trimming.out, endosymbiont_reference)
+
+    host_mapping(trimming.out, host_reference)
 
     endosymbiont_read_filtering(endosymbiont_mapping.out.endosym_mapped)
 
