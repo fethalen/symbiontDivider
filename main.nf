@@ -2,6 +2,7 @@
 
 nextflow.enable.dsl=2
 
+project_dir = projectDir
 
 def helpMessage() {
     log.info"""
@@ -187,11 +188,13 @@ process endosymbiont_mapping {
 
     output:
     tuple val(name), file('*_endosym.sam'), emit: endosym_mapped
+    path 'log.txt', emit: alignment_stats
 
     script:
     """
     bowtie2-build ${endosymbiont_reference} endosymbiont
     bowtie2 -x endosymbiont -p ${params.threads/2} -1 ${reads[0]} -2 ${reads[1]} -S ${name}_endosym.sam --very-sensitive
+    cat .command.log > log.txt
     """
 }
 
@@ -348,18 +351,28 @@ process host_assembly_quality {
     """
 
 }
-/*
+
 process coverage_estimate {
 
     input:
-    file genome
+    path stats
+    tuple val(name), file(reads)
+    file endosymbiont_reference
+
+    output:
+    file 'coverage.txt'
 
     script:
     """
-    grep -v ">" genome | tr -d "\n" | wc -c | python3 bin/coverage_estimate.py
+    grep -v ">" $endosymbiont_reference | tr -d "\n" | wc -c > host_count.txt
+    cat $stats > alignment_rate.txt
+    cat ${reads[0]} | paste - - - - | cut -f 2 | tr -d '\n' | wc -c > base_count.txt
+    python3 $project_dir/bin/coverage_estimate.py
+
 
     """
 }
+/*
 process compression {
 
     input:
@@ -400,6 +413,8 @@ workflow {
 
     endosymbiont_mapping(trimming.out, endosymbiont_reference)
 
+    coverage_estimate(endosymbiont_mapping.out.alignment_stats, trimming.out, endosymbiont_reference)
+
     host_mapping(trimming.out, host_reference)
 
     endosymbiont_read_filtering(endosymbiont_mapping.out.endosym_mapped)
@@ -428,3 +443,4 @@ workflow.onError {
     log.info "Workflow execution stopped with the following message:"
     log.info "  " + workflow.errorMessage
 }
+
