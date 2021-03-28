@@ -336,6 +336,8 @@ process host_assembly_quality {
 
 process coverage_estimate {
 
+    tag "$name"
+
     input:
     path stats
     tuple val(name), file(reads)
