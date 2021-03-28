@@ -102,25 +102,7 @@ endosymbiont_reference = Channel
 host_reference = Channel
     .fromPath( params.host_reference, type: 'file')
 
-/*
-process trimming_and_qc {
 
-    tag "$name"
-
-    input:
-    tuple val(name), file(reads)
-
-    output:
-    tuple val(name), file('*.fq')
-
-    script:
-    """
-
-    trim_galore --paired --fastqc --cores ${params.threads} ${reads[0]} ${reads[1]}
-
-    """
-}
-*/
 process raw_qc {
 
     tag "$name"
@@ -403,7 +385,6 @@ process visualise_quality {
 
 */
 workflow {
-    // trimming_and_qc(rawReads)
 
     raw_qc(rawReads)
 
