@@ -105,6 +105,8 @@ host_reference = Channel
 
 process raw_qc {
 
+    publishDir "${params.output}/$name/qc"
+
     tag "$name"
 
     input:
@@ -142,6 +144,8 @@ process trimming {
 }
 
 process trimmed_qc {
+
+    publishDir "${params.output}/$name/qc"
 
     tag "$name"
 
@@ -245,7 +249,7 @@ process host_read_filtering {
 }
 
 process endosymbiont_assembly {
-    publishDir "${params.output}/endosymbiont"
+    publishDir "${params.output}/$name/endosymbiont"
 
     tag "$name"
 
@@ -268,7 +272,7 @@ process endosymbiont_assembly {
 
 
 process host_assembly {
-    publishDir "${params.output}/host"
+    publishDir "${params.output}/$name/host"
 
     tag "$name"
 
@@ -290,7 +294,7 @@ process host_assembly {
 
 
 process endosymbiont_assembly_quality {
-    publishDir "${params.output}/endosymbiont"
+    publishDir "${params.output}/$name/endosymbiont"
 
     tag "$name"
 
@@ -312,7 +316,7 @@ process endosymbiont_assembly_quality {
 }
 
 process host_assembly_quality {
-    publishDir "${params.output}/host"
+    publishDir "${params.output}/$name/host"
 
 
     tag "$name"
@@ -335,6 +339,8 @@ process host_assembly_quality {
 }
 
 process coverage_estimate {
+
+    publishDir "${params.output}/$name"
 
     tag "$name"
 
@@ -426,4 +432,3 @@ workflow.onError {
     log.info "Workflow execution stopped with the following message:"
     log.info "  " + workflow.errorMessage
 }
-
