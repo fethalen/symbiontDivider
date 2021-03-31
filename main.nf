@@ -112,6 +112,9 @@ process raw_qc {
     input:
     tuple val(name), file(reads)
 
+    output:
+    file '*.html'
+
     when:
     ! skip_qc
 
@@ -134,6 +137,9 @@ process trimming {
     output:
     tuple val(name), file('*.fq'), emit: trimmed_reads
 
+    when:
+    ! params.skip_trimming
+
     script:
     """
 
@@ -152,8 +158,11 @@ process trimmed_qc {
     input:
     tuple val(name), file(reads)
 
+    output:
+    file '*.html'
+
     when:
-    ! skip_qc
+    ! skip_qc && ! params.skip_trimming
 
     script:
     """
@@ -400,11 +409,17 @@ workflow {
 
     trimmed_qc(trimming.out)
 
-    endosymbiont_mapping(trimming.out, endosymbiont_reference)
+    if (params.skip_trimming)
+        endosymbiont_mapping(rawReads, endosymbiont_reference)
+    else
+        endosymbiont_mapping(trimming.out, endosymbiont_reference)
 
     coverage_estimate(endosymbiont_mapping.out.alignment_stats, trimming.out, endosymbiont_reference)
 
-    host_mapping(trimming.out, host_reference)
+    if (params.skip_trimming)
+        host_mapping(rawReads, host_reference)
+    else
+        host_mapping(trimming.out, host_reference)
 
     endosymbiont_read_filtering(endosymbiont_mapping.out.endosym_mapped)
 
