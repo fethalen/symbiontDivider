@@ -7,16 +7,16 @@ project_dir = projectDir
 def helpMessage() {
     log.info"""
     Description:
-    An easy to use pipeline to separate endosymbiont genomes from their host's
+        An easy to use pipeline to separate endosymbiont genomes from their host's
 
     Pipeline summary:
-    1. Trimming using Trimmomatic
-    2. Quality Control using FastQC
-    3. Mapping of endosymbiont reads on reference genome using bowtie2
-    4. Filtering the mpped reads using samtools
-    5. Assembly of endosymbiont genome using ABySS
-    6. Assembly of host genome using ABySS
-    7. Assembly quality assesment using BUSCO
+        1. Trimming using Trimmomatic
+        2. Quality Control using FastQC
+        3. Mapping of endosymbiont reads on reference genome using bowtie2
+        4. Filtering the mpped reads using samtools
+        5. Assembly of endosymbiont genome using ABySS
+        6. Assembly of host genome using ABySS
+        7. Assembly quality assesment using BUSCO
 
     Usage:
         nextflow run main.nf --reads '*_R{1,2}\\.fastq.gz' --endosymbiont_reference '*_endosymRef\\.fna' --host_reference '*_hostRef\\.fna'
@@ -105,7 +105,7 @@ host_reference = Channel
 
 process raw_qc {
 
-    publishDir "${params.output}/$name/qc"
+    publishDir "${params.output}/$name/quality_control"
 
     tag "$name"
 
@@ -120,9 +120,7 @@ process raw_qc {
 
     script:
     """
-
     fastqc --threads ${params.threads/2} --quiet ${reads[0]} ${reads[1]}
-
     """
 
 }
@@ -142,16 +140,14 @@ process trimming {
 
     script:
     """
-
     trim_galore --paired --cores ${params.threads/2} ${reads[0]} ${reads[1]}
-
     """
 
 }
 
 process trimmed_qc {
 
-    publishDir "${params.output}/$name/qc"
+    publishDir "${params.output}/$name/quality_control"
 
     tag "$name"
 
@@ -166,9 +162,7 @@ process trimmed_qc {
 
     script:
     """
-
     fastqc --threads ${params.threads/2} --quiet ${reads[0]} ${reads[1]}
-
     """
 
 }
@@ -229,9 +223,7 @@ process endosymbiont_read_filtering {
 
     script:
     """
-
     samtools view -@ ${params.threads/2} -h -F 4 $endosym_mapped > mapped_${endosym_mapped}
-
     """
 }
 
@@ -251,14 +243,13 @@ process host_read_filtering {
 
     script:
     """
-
     samtools view -@ ${params.threads/2} -h -F 4 $host_mapped > mapped_${host_mapped}
-
     """
 }
 
 process endosymbiont_assembly {
-    publishDir "${params.output}/$name/endosymbiont"
+
+    publishDir "${params.output}/$name/endosymbiont_assembly"
 
     tag "$name"
 
@@ -273,15 +264,14 @@ process endosymbiont_assembly {
 
     script:
     """
-
     abyss-pe np=${params.threads/2} name=marta2_endosym k=96 in='$filtered' B=${params.memory/2}G H=3 kc=3 v=-v
-
     """
 }
 
 
 process host_assembly {
-    publishDir "${params.output}/$name/host"
+
+    publishDir "${params.output}/$name/host_assembly"
 
     tag "$name"
 
@@ -303,7 +293,8 @@ process host_assembly {
 
 
 process endosymbiont_assembly_quality {
-    publishDir "${params.output}/$name/endosymbiont"
+
+    publishDir "${params.output}/$name/endosymbiont_assembly"
 
     tag "$name"
 
@@ -319,13 +310,13 @@ process endosymbiont_assembly_quality {
     script:
     """
     busco -c ${params.threads/2} -i $endosym -m genome -o $name --auto-lineage-prok
-
     """
 
 }
 
 process host_assembly_quality {
-    publishDir "${params.output}/$name/host"
+
+    publishDir "${params.output}/$name/host_assembly"
 
 
     tag "$name"
@@ -342,7 +333,6 @@ process host_assembly_quality {
     script:
     """
     busco -c ${params.threads/2} -i $host -m genome -o $name --auto-lineage-euk
-
     """
 
 }
@@ -367,8 +357,6 @@ process coverage_estimate {
     cat $stats > alignment_rate.txt
     cat ${reads[0]} | paste - - - - | cut -f 2 | tr -d '\n' | wc -c > base_count.txt
     python3 $project_dir/bin/coverage_estimate.py
-
-
     """
 }
 /*
@@ -404,34 +392,24 @@ process visualise_quality {
 workflow {
 
     raw_qc(rawReads)
-
     trimming(rawReads)
-
     trimmed_qc(trimming.out)
-
     if (params.skip_trimming)
         endosymbiont_mapping(rawReads, endosymbiont_reference)
     else
         endosymbiont_mapping(trimming.out, endosymbiont_reference)
-
     coverage_estimate(endosymbiont_mapping.out.alignment_stats, trimming.out, endosymbiont_reference)
-
     if (params.skip_trimming)
         host_mapping(rawReads, host_reference)
     else
         host_mapping(trimming.out, host_reference)
-
     endosymbiont_read_filtering(endosymbiont_mapping.out.endosym_mapped)
-
     host_read_filtering(host_mapping.out.host_mapped)
-
     endosymbiont_assembly(endosymbiont_read_filtering.out.endosym_filtered)
-    
     host_assembly(host_read_filtering.out.host_filtered)
-    
     endosymbiont_assembly_quality(endosymbiont_assembly.out.endosym_assembled)
-    
     host_assembly_quality(host_assembly.out.host_assembled)
+
 }
 
 workflow.onComplete {
