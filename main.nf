@@ -105,6 +105,8 @@ host_reference = Channel
 
 process raw_qc {
 
+    conda "$baseDir/environment.yml"
+
     publishDir "${params.output}/$name/quality_control"
 
     tag "$name"
@@ -127,6 +129,8 @@ process raw_qc {
 
 process trimming {
 
+    conda "$baseDir/environment.yml"
+
     tag "$name"
 
     input:
@@ -146,6 +150,8 @@ process trimming {
 }
 
 process trimmed_qc {
+
+    conda "$baseDir/environment.yml"
 
     publishDir "${params.output}/$name/quality_control"
 
@@ -169,6 +175,8 @@ process trimmed_qc {
 
 process endosymbiont_mapping {
 
+    conda "$baseDir/environment.yml"
+
     tag "$name"
 
     input:
@@ -188,6 +196,8 @@ process endosymbiont_mapping {
 }
 
 process host_mapping {
+
+    conda "$baseDir/environment.yml"
 
     tag "$name"
 
@@ -211,6 +221,8 @@ process host_mapping {
 
 
 process endosymbiont_read_filtering {
+
+    conda "$baseDir/environment.yml"
     
     tag "$name"
 
@@ -228,6 +240,8 @@ process endosymbiont_read_filtering {
 }
 
 process host_read_filtering {
+
+    conda "$baseDir/environment.yml"
     
     tag "$name"
 
@@ -248,6 +262,8 @@ process host_read_filtering {
 }
 
 process endosymbiont_assembly {
+
+    conda "$baseDir/environment.yml"
 
     publishDir "${params.output}/$name/endosymbiont_assembly"
 
@@ -270,6 +286,8 @@ process endosymbiont_assembly {
 
 
 process host_assembly {
+
+    conda "$baseDir/environment.yml"
 
     publishDir "${params.output}/$name/host_assembly"
 
@@ -294,6 +312,8 @@ process host_assembly {
 
 process endosymbiont_assembly_quality {
 
+    conda "$baseDir/environment.yml"
+
     publishDir "${params.output}/$name/endosymbiont_assembly"
 
     tag "$name"
@@ -315,6 +335,8 @@ process endosymbiont_assembly_quality {
 }
 
 process host_assembly_quality {
+
+    conda "$baseDir/environment.yml"
 
     publishDir "${params.output}/$name/host_assembly"
 
@@ -338,6 +360,8 @@ process host_assembly_quality {
 }
 
 process coverage_estimate {
+
+    conda "$baseDir/environment.yml"
 
     publishDir "${params.output}/$name"
 
