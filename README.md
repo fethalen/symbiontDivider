@@ -13,7 +13,7 @@ An easy to use pipeline to separate endosymbiont genomes from their host's
 4. Coverage estimate
 5. Read filtering using samtools
 6. Assembly of endosymbiont and host genome using ABySS
-7. Assembly quality assessment using BUSCO
+7. Assembly quality assessment using QUAST
 
 
 ## ToDo
