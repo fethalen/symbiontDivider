@@ -8,7 +8,6 @@ def helpMessage() {
     log.info"""
     Description:
         An easy to use pipeline to separate endosymbiont genomes from their host's
-
     Pipeline summary:
         1. Trimming using Trimmomatic
         2. Quality Control using FastQC
@@ -17,7 +16,6 @@ def helpMessage() {
         5. Assembly of endosymbiont genome using ABySS
         6. Assembly of host genome using ABySS
         7. Assembly quality assesment using BUSCO
-
     Usage:
         nextflow run main.nf --reads '*_R{1,2}\\.fastq.gz' --endosymbiont_reference '*_endosymRef\\.fna' --host_reference '*_hostRef\\.fna'
         
@@ -30,17 +28,14 @@ def helpMessage() {
         --host_reference
                             path to one or more reference genomes for the host assembly
                             (valid file types: '.fna')
-
     Input/output options:
         --output            path to a directory which the results are written to
                             (default: $params.output)
-
     Resource allocation:
         --memory            memory limit for the assembly step in GB (default:
                             $params.memory)
         --threads           maximum number of threads to be used by the pipeline
                             (default: '$params.threads')
-
     Flow control:
         --endosymbiont_only
                             skip processing of reads not belonging to the endosymbiont (default: $params.endosymbiont_only)
@@ -54,7 +49,6 @@ def helpMessage() {
                            
         --skip_assembly_quality
                             skip assembly quality assessment (default: $params.skip_assembly_quality)
-
     Miscellaneous:
         --help              display this help message and exit
         --version           display the pipeline's version number and exit
@@ -300,6 +294,7 @@ process endosymbiont_assembly_quality {
 
     input:
     tuple val(name), file(endosym)
+    file endosymbiont_reference
 
     output:
     file '*'
@@ -309,7 +304,7 @@ process endosymbiont_assembly_quality {
 
     script:
     """
-    busco -c ${params.threads/2} -i $endosym -m genome -o $name --auto-lineage-prok
+    quast.py $endosym -r $endosymbiont_reference
     """
 
 }
@@ -332,7 +327,7 @@ process host_assembly_quality {
 
     script:
     """
-    busco -c ${params.threads/2} -i $host -m genome -o $name --auto-lineage-euk
+    quast.py $host
     """
 
 }
@@ -361,33 +356,21 @@ process coverage_estimate {
 }
 /*
 process compression {
-
     input:
     file sample from assembled
-
     output:
     file '*.gz' into compressed
-
     script:
     """
     """
 }
-
 process visualise_quality {
-
     input:
     file sample from quality
-
     script:
     """
     """
 }
-
-
-
-
-
-
 */
 workflow {
 
@@ -407,7 +390,7 @@ workflow {
     host_read_filtering(host_mapping.out.host_mapped)
     endosymbiont_assembly(endosymbiont_read_filtering.out.endosym_filtered)
     host_assembly(host_read_filtering.out.host_filtered)
-    endosymbiont_assembly_quality(endosymbiont_assembly.out.endosym_assembled)
+    endosymbiont_assembly_quality(endosymbiont_assembly.out.endosym_assembled, endosymbiont_reference)
     host_assembly_quality(host_assembly.out.host_assembled)
 
 }
