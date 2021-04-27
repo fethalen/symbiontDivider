@@ -9,7 +9,7 @@ def helpMessage() {
     Description:
         An easy to use pipeline to separate endosymbiont genomes from their host's
     Pipeline summary:
-        1. Trimming using Trimmomatic
+        1. Trimming using Trim Galore!
         2. Quality Control using FastQC
         3. Mapping of endosymbiont reads on reference genome using bowtie2
         4. Filtering the mpped reads using samtools
@@ -24,10 +24,10 @@ def helpMessage() {
                             file types: .fastq.gz', '.fq.gz', '.fastq', or '.fq')
         --endosymbiont_reference
                             path to one or more reference genomes for the endosymbiont
-                            assembly (valid file types: '.fna')
+                            assembly (valid file type extensions: '.fa', '.fna', '.fasta', '.faa')
         --host_reference
                             path to one or more reference genomes for the host assembly
-                            (valid file types: '.fna')
+                            (valid file type extensions: '.fa', '.fna', '.fasta', '.faa')
     Input/output options:
         --output            path to a directory which the results are written to
                             (default: $params.output)
