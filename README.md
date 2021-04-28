@@ -18,6 +18,7 @@ An easy to use pipeline to separate endosymbiont genomes from their host's
 ## Usage
 
 ```bash
+cd Docker
 ./build.sh
 nextflow run main.nf --reads '*_R{1,2}\\.fastq.gz' --endosymbiont_reference '*_endosymRef\\.fna' --host_reference '*_hostRef\\.fna' -with-docker
 ```
