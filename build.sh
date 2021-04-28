@@ -1,1 +1,2 @@
-docker build -t pipeline .
+#!/bin/bash
+ocker build -t pipeline .
