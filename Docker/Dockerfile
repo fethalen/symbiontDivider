@@ -25,5 +25,5 @@ RUN conda update --all
 
 RUN conda install -c bioconda bowtie2 samtools
 
-RUN git clone git@github.com:ablab/quast.git && ./quast/setup.py
-RUN PATH /home/pipeline/Docker/quast:$PATH
+RUN git clone https://github.com/ablab/quast && cd quast && ./setup.py install && cd ..
+ENV PATH /home/pipeline/quast:$PATH
