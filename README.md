@@ -15,12 +15,18 @@ An easy to use pipeline to separate endosymbiont genomes from their host's
 6. Assembly of endosymbiont and host genome using ABySS
 7. Assembly quality assessment using QUAST
 
-## Usage
+## Installation
 
 ```bash
+git clone https://github.com/clemensma/symbiontDivider
 cd Docker
 ./build.sh
 cd ..
+```
+
+## Usage
+
+```bash
 nextflow run main.nf --reads '*_R{1,2}\\.fastq.gz' --endosymbiont_reference '*_endosymRef\\.fna' --host_reference '*_hostRef\\.fna' -with-docker
 ```
 
