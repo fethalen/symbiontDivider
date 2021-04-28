@@ -4,7 +4,7 @@ LABEL author="Clemens Mauksch"
 
 RUN apt-get update --fix-missing && apt-get install sudo
 
-RUN sudo apt-get install -y apt-utils openjdk-14-jdk default-jre curl python3 cutadapt fastqc trim-galore abyss wget pip
+RUN sudo apt-get install -y apt-utils openjdk-14-jdk default-jre curl python3 cutadapt fastqc trim-galore abyss wget git
 
 RUN adduser --disabled-password --gecos '' pipeline
 RUN adduser pipeline sudo
