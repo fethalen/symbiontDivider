@@ -10,14 +10,14 @@ RUN adduser --disabled-password --gecos '' pipeline
 RUN adduser pipeline sudo
 RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 USER pipeline
-WORKDIR /home/pipeline/
-RUN chmod a+rwx /home/pipeline/
+WORKDIR /home/pipeline/Docker
+RUN sudo  chmod a+rwx /home/pipeline/Docker
 
 RUN wget https://repo.anaconda.com/archive/Anaconda3-2020.11-Linux-x86_64.sh
 RUN bash Anaconda3-2020.11-Linux-x86_64.sh -b
 RUN rm Anaconda3-2020.11-Linux-x86_64.sh 
 
-ENV PATH /home/pipeline/anaconda3/bin:$PATH
+ENV PATH /home/pipeline/Docker/anaconda3/bin:$PATH
 
 RUN conda update conda
 RUN conda update anaconda
@@ -25,4 +25,5 @@ RUN conda update --all
 
 RUN conda install -c bioconda bowtie2 samtools
 
-RUN pip install quast
+RUN git clone git@github.com:ablab/quast.git && ./quast/setup.py
+RUN PATH /home/pipeline/Docker/quast:$PATH
