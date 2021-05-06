@@ -76,7 +76,7 @@ if ( params.endosymbiont_reference == null) {
             "Launch this workflow with '--help' for more info"
 }
 
-if ( params.host_reference == null) {
+if ( params.host_reference == null && ! params.endosymbiont_only) {
     exit 1, "Missing mandatory argument '--host_reference'\n" +
             "Launch this workflow with '--help' for more info"
 }
