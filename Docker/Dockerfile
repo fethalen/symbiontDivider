@@ -23,7 +23,10 @@ RUN conda update conda
 RUN conda update anaconda
 RUN conda update --all
 
-RUN conda install -c bioconda bowtie2 samtools
+RUN conda install -c bioconda bowtie2 samtools megahit
 
 RUN git clone https://github.com/ablab/quast && cd quast && ./setup.py install && cd ..
 ENV PATH /home/pipeline/Docker/quast:$PATH
+
+RUN wget http://cab.spbu.ru/files/release3.15.2/SPAdes-3.15.2-Linux.tar.gz && tar -xzf SPAdes-3.15.2-Linux.tar.gz
+ENV PATH /home/pipeline/Docker/SPAdes-3.15.2-Linux/bin:$PATH
