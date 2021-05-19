@@ -25,9 +25,6 @@ def helpMessage() {
         --endosymbiont_reference
                             path to one or more reference genomes for the endosymbiont
                             assembly (valid file type extensions: '.fa', '.fna', '.fasta', '.faa')
-        --host_reference
-                            path to one or more reference genomes for the host assembly
-                            (valid file type extensions: '.fa', '.fna', '.fasta', '.faa')
     Input/output options:
         --output            path to a directory which the results are written to
                             (default: $params.output)
@@ -76,11 +73,6 @@ if ( params.endosymbiont_reference == null) {
             "Launch this workflow with '--help' for more info"
 }
 
-if ( params.host_reference == null && ! params.endosymbiont_only) {
-    exit 1, "Missing mandatory argument '--host_reference'\n" +
-            "Launch this workflow with '--help' for more info"
-}
-
 rawReads = Channel
     .fromFilePairs( params.reads, size: 2, type: 'file' )
     .filter { it =~/.*\.fastq\.gz|.*\.fq\.gz|.*\.fastq|.*\.fq/ }
@@ -93,8 +85,6 @@ rawReads = Channel
 endosymbiont_reference = Channel
     .fromPath( params.endosymbiont_reference, type: 'file')
 
-host_reference = Channel
-    .fromPath( params.host_reference, type: 'file')
 
 
 process raw_qc {
@@ -127,7 +117,7 @@ process trimming {
     tuple val(name), file(reads)
 
     output:
-    tuple val(name), file('*.fq'), emit: trimmed_reads
+    tuple val(name), file('*.fq*'), emit: trimmed_reads
 
     when:
     ! params.skip_trimming
@@ -181,29 +171,6 @@ process endosymbiont_mapping {
     """
 }
 
-process host_mapping {
-
-    tag "$name"
-
-    input:
-    tuple val(name), file(reads)
-    file host_reference
-
-    output:
-    tuple val(name), file('*_host.sam'), emit: host_mapped
-
-    when:
-    ! params.endosymbiont_only
-
-    script:
-    """
-    bowtie2-build ${host_reference} host
-    bowtie2 -x host -p ${params.threads/2} -1 ${reads[0]} -2 ${reads[1]} -S ${name}_host.sam --very-sensitive
-    """
-
-}
-
-
 process endosymbiont_read_filtering {
     
     tag "$name"
@@ -221,25 +188,6 @@ process endosymbiont_read_filtering {
     """
 }
 
-process host_read_filtering {
-    
-    tag "$name"
-
-    input:
-    tuple val(name), file(host_mapped)
-
-    output:
-    tuple val(name), file('*_host.sam'), emit: host_filtered
-
-    when:
-    ! params.endosymbiont_only
-
-
-    script:
-    """
-    samtools view -@ ${params.threads/2} -h -F 4 $host_mapped > mapped_${host_mapped}
-    """
-}
 
 process endosymbiont_assembly {
 
@@ -265,24 +213,44 @@ process endosymbiont_assembly {
 
 process host_assembly {
 
-    publishDir "${params.output}/$name/host_assembly"
-
     tag "$name"
 
     input:
-    tuple val(name), file(filtered)
+    tuple val(name), file(reads)
 
     output:
-    tuple val(name), file('*scaffolds.fa'), emit: host_assembled
+    tuple val(name), file('megahit_out/final.contigs.fa'), emit: host_assembled
 
     when:
     ! params.skip_host_assembly && ! params.endosymbiont_only
 
     script:
     """
-    abyss-pe np=${params.threads/2} name=${name}_host k=96 in='$filtered' B=${params.memory/2}G H=3 kc=3 v=-v
+    megahit -1 ${reads[0]} -2 ${reads[1]} -t ${params.threads/2} --k-min 113 --k-max 113
     """
 
+}
+
+process host_read_filtering {
+
+    publishDir "${params.output}/$name/host_assembly"
+    
+    tag "$name"
+
+    input:
+    tuple val(name), file(host_assembled)
+
+    output:
+    tuple val(name), file('mitogenome.fa'), emit: host_filtered
+
+    when:
+    ! params.skip_host_assembly && ! params.endosymbiont_only
+
+
+    script:
+    """
+    python3 $project_dir/bin/longest_contig.py $host_assembled
+    """
 }
 
 
@@ -377,21 +345,18 @@ workflow {
     raw_qc(rawReads)
     trimming(rawReads)
     trimmed_qc(trimming.out)
-    if (params.skip_trimming)
+    if (params.skip_trimming) {
         endosymbiont_mapping(rawReads, endosymbiont_reference)
-    else
+        host_assembly(rawReads) }
+    else {
         endosymbiont_mapping(trimming.out, endosymbiont_reference)
+        host_assembly(trimming.out) }
     coverage_estimate(endosymbiont_mapping.out.alignment_stats, trimming.out, endosymbiont_reference)
-    if (params.skip_trimming)
-        host_mapping(rawReads, host_reference)
-    else
-        host_mapping(trimming.out, host_reference)
     endosymbiont_read_filtering(endosymbiont_mapping.out.endosym_mapped)
-    host_read_filtering(host_mapping.out.host_mapped)
     endosymbiont_assembly(endosymbiont_read_filtering.out.endosym_filtered)
-    host_assembly(host_read_filtering.out.host_filtered)
     endosymbiont_assembly_quality(endosymbiont_assembly.out.endosym_assembled, endosymbiont_reference)
-    host_assembly_quality(host_assembly.out.host_assembled)
+    host_read_filtering(host_assembly.out.host_assembled)
+    host_assembly_quality(host_read_filtering.out.host_filtered)
 
 }
 
