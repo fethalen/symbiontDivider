@@ -28,7 +28,7 @@ cd ..
 ## Usage
 
 ```bash
-nextflow run main.nf --reads '*_R{1,2}\\.fastq.gz' --endosymbiont_reference '*_endosymRef\\.fna' --host_reference '*_hostRef\\.fna' -with-docker
+nextflow run main.nf --reads '*_R{1,2}\\.fastq.gz' --endosymbiont_reference '*_endosymRef\\.fna' -with-docker
 ```
 
 ## ToDo
