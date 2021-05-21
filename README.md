@@ -33,8 +33,7 @@ nextflow run main.nf --reads '*_R{1,2}\\.fastq.gz' --endosymbiont_reference '*_e
 
 ## ToDo
 
-- (Assembling host genome de novo option)
+- (Assembling host mitogenome de novo)
 - Visualisation of quality
 - Compression for long time storage
 - (CPU Core management)
-- (Docker release)
