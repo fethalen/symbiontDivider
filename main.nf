@@ -89,7 +89,7 @@ endosymbiont_reference = Channel
 
 process raw_qc {
 
-    publishDir "${params.output}/$name/quality_control"
+    publishDir "${params.output}/$name/quality_control", mode: 'copy'
 
     tag "$name"
 
@@ -131,7 +131,7 @@ process trimming {
 
 process trimmed_qc {
 
-    publishDir "${params.output}/$name/quality_control"
+    publishDir "${params.output}/$name/quality_control", mode: 'copy'
 
     tag "$name"
 
@@ -151,12 +151,28 @@ process trimmed_qc {
 
 }
 
-process endosymbiont_mapping {
+process first_assembly {
 
     tag "$name"
 
     input:
     tuple val(name), file(reads)
+
+    output:
+    tuple val(name), file('megahit_out/final.contigs.fa')
+
+    script:
+    """
+    megahit -1 ${reads[0]} -2 ${reads[1]} -t ${params.threads} -m ${params.memory}
+    """
+}
+
+process endosymbiont_mapping {
+
+    tag "$name"
+
+    input:
+    tuple val(name), file(contigs)
     file endosymbiont_reference
 
     output:
@@ -166,7 +182,7 @@ process endosymbiont_mapping {
     script:
     """
     bowtie2-build ${endosymbiont_reference} endosymbiont
-    bowtie2 -x endosymbiont -p ${params.threads/2} -1 ${reads[0]} -2 ${reads[1]} -S ${name}_endosym.sam --very-sensitive
+    bowtie2 -x endosymbiont -p ${params.threads/2} -f $contigs -S ${name}_endosym.sam --very-sensitive
     cat .command.log > log.txt
     """
 }
@@ -179,19 +195,20 @@ process endosymbiont_read_filtering {
     tuple val(name), file(endosym_mapped)
 
     output:
-    tuple val(name), file('*_endosym.sam'), emit: endosym_filtered
+    tuple val(name), file('sorted_*.bam'), emit: endosym_filtered
 
 
     script:
     """
-    samtools view -@ ${params.threads/2} -h -F 4 $endosym_mapped > mapped_${endosym_mapped}
+    samtools view -@ ${params.threads/2} -bS $endosym_mapped > mapped_${name}.bam
+    samtools sort -@ ${params.threads/2} -o sorted_${name}.bam mapped_${name}.bam
+    samtools index sorted_${name}.bam
     """
 }
 
-
 process endosymbiont_assembly {
 
-    publishDir "${params.output}/$name/endosymbiont_assembly"
+    publishDir "${params.output}/$name/endosymbiont_assembly", mode: 'copy'
 
     tag "$name"
 
@@ -206,34 +223,13 @@ process endosymbiont_assembly {
 
     script:
     """
-    abyss-pe np=${params.threads/2} name=marta2_endosym k=96 in='$filtered' B=${params.memory/2}G H=3 kc=3 v=-v
+    abyss-pe np=${params.threads} name=$name k=96 in='$filtered' B=${params.memory}G H=3 kc=3 v=-v
     """
-}
-
-
-process host_assembly {
-
-    tag "$name"
-
-    input:
-    tuple val(name), file(reads)
-
-    output:
-    tuple val(name), file('megahit_out/final.contigs.fa'), emit: host_assembled
-
-    when:
-    ! params.skip_host_assembly && ! params.endosymbiont_only
-
-    script:
-    """
-    megahit -1 ${reads[0]} -2 ${reads[1]} -t ${params.threads/2} --k-min 113 --k-max 113
-    """
-
 }
 
 process host_read_filtering {
 
-    publishDir "${params.output}/$name/host_assembly"
+    publishDir "${params.output}/$name/host_assembly", mode: 'copy'
     
     tag "$name"
 
@@ -253,10 +249,9 @@ process host_read_filtering {
     """
 }
 
-
 process endosymbiont_assembly_quality {
 
-    publishDir "${params.output}/$name/endosymbiont_assembly"
+    publishDir "${params.output}/$name/endosymbiont_assembly", mode: 'copy'
 
     tag "$name"
 
@@ -279,7 +274,7 @@ process endosymbiont_assembly_quality {
 
 process host_assembly_quality {
 
-    publishDir "${params.output}/$name/host_assembly"
+    publishDir "${params.output}/$name/host_assembly", mode: 'copy'
 
 
     tag "$name"
@@ -346,16 +341,15 @@ workflow {
     trimming(rawReads)
     trimmed_qc(trimming.out)
     if (params.skip_trimming) {
-        endosymbiont_mapping(rawReads, endosymbiont_reference)
-        host_assembly(rawReads) }
+        first_assembly(rawReads) }
     else {
-        endosymbiont_mapping(trimming.out, endosymbiont_reference)
-        host_assembly(trimming.out) }
+        first_assembly(trimming.out) }
+    endosymbiont_mapping(first_assembly.out, endosymbiont_reference)
     coverage_estimate(endosymbiont_mapping.out.alignment_stats, trimming.out, endosymbiont_reference)
     endosymbiont_read_filtering(endosymbiont_mapping.out.endosym_mapped)
     endosymbiont_assembly(endosymbiont_read_filtering.out.endosym_filtered)
     endosymbiont_assembly_quality(endosymbiont_assembly.out.endosym_assembled, endosymbiont_reference)
-    host_read_filtering(host_assembly.out.host_assembled)
+    host_read_filtering(first_assembly.out)
     host_assembly_quality(host_read_filtering.out.host_filtered)
 
 }
