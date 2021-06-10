@@ -89,7 +89,7 @@ endosymbiont_reference = Channel
 
 process raw_qc {
 
-    publishDir "${params.output}/$name/quality_control"
+    publishDir "${params.output}/$name/quality_control", mode: 'copy'
 
     tag "$name"
 
@@ -131,7 +131,7 @@ process trimming {
 
 process trimmed_qc {
 
-    publishDir "${params.output}/$name/quality_control"
+    publishDir "${params.output}/$name/quality_control", mode: 'copy'
 
     tag "$name"
 
@@ -191,7 +191,7 @@ process endosymbiont_read_filtering {
 
 process endosymbiont_assembly {
 
-    publishDir "${params.output}/$name/endosymbiont_assembly"
+    publishDir "${params.output}/$name/endosymbiont_assembly", mode: 'copy'
 
     tag "$name"
 
@@ -206,7 +206,7 @@ process endosymbiont_assembly {
 
     script:
     """
-    abyss-pe np=${params.threads/2} name=marta2_endosym k=96 in='$filtered' B=${params.memory/2}G H=3 kc=3 v=-v
+    abyss-pe np=${params.threads/2} name=$name k=96 in='$filtered' B=${params.memory/2}G H=3 kc=3 v=-v
     """
 }
 
@@ -226,14 +226,14 @@ process host_assembly {
 
     script:
     """
-    megahit -1 ${reads[0]} -2 ${reads[1]} -t ${params.threads/2} --k-min 113 --k-max 113
+    megahit -1 ${reads[0]} -2 ${reads[1]} -t ${params.threads/2} -m ${params.memory/2}
     """
 
 }
 
 process host_read_filtering {
 
-    publishDir "${params.output}/$name/host_assembly"
+    publishDir "${params.output}/$name/host_assembly", mode: 'copy'
     
     tag "$name"
 
@@ -256,7 +256,7 @@ process host_read_filtering {
 
 process endosymbiont_assembly_quality {
 
-    publishDir "${params.output}/$name/endosymbiont_assembly"
+    publishDir "${params.output}/$name/endosymbiont_assembly", mode: 'copy'
 
     tag "$name"
 
@@ -279,7 +279,7 @@ process endosymbiont_assembly_quality {
 
 process host_assembly_quality {
 
-    publishDir "${params.output}/$name/host_assembly"
+    publishDir "${params.output}/$name/host_assembly", mode: 'copy'
 
 
     tag "$name"
