@@ -185,20 +185,24 @@ process endosymbiont_mapping {
 
 process endosymbiont_read_filtering {
     
+    publishDir "${params.output}/$name/endosymbiont_assembly", mode: 'copy'
+
     tag "$name"
 
     input:
-    tuple val(name), file(endosym_mapped)
+    tuple val(name), file(contigs)
+    file endosymbiont_reference
 
     output:
-    tuple val(name), file('sorted_*.bam'), emit: endosym_filtered
+    tuple val(name), file('*_endosymbiont.fa'), emit: endosym_filtered
 
 
     script:
     """
-    samtools view -@ ${params.threads/2} -bS $endosym_mapped > mapped_${name}.bam
-    samtools sort -@ ${params.threads/2} -o sorted_${name}.bam mapped_${name}.bam
-    samtools index sorted_${name}.bam
+    makeblastdb -in $endosymbiont_reference -title endosymbiont -parse_seqids -dbtype nucl -hash_index -out db
+    blastn -query $contigs -db db -outfmt "10 qseqid" -word_size 18 > seqid.txt
+    grep -F -f seqid.txt $contigs -A 1 > ${name}_endosymbiont.fa
+    sed -n -i '/--*/!p' ${name}_endosymbiont.fa
     """
 }
 
@@ -342,11 +346,8 @@ workflow {
         first_assembly(rawReads) }
     else {
         first_assembly(trimming.out) }
-    endosymbiont_mapping(first_assembly.out, endosymbiont_reference)
-    coverage_estimate(endosymbiont_mapping.out.alignment_stats, trimming.out, endosymbiont_reference)
-    endosymbiont_read_filtering(endosymbiont_mapping.out.endosym_mapped)
-    endosymbiont_assembly(endosymbiont_read_filtering.out.endosym_filtered)
-    endosymbiont_assembly_quality(endosymbiont_assembly.out.endosym_assembled, endosymbiont_reference)
+    endosymbiont_read_filtering(first_assembly.out, endosymbiont_reference)
+    endosymbiont_assembly_quality(endosymbiont_read_filtering.out, endosymbiont_reference)
     host_read_filtering(first_assembly.out)
     host_assembly_quality(host_read_filtering.out.host_filtered)
 
