@@ -41,9 +41,6 @@ def helpMessage() {
         --skip_qc           skip reads quality assessment (default: $params.skip_qc)
         --skip_endosymbiont_assembly
                             skip endosymbiont assembly step (default: $params.skip_endosymbiont_assembly)
-        --skip_host_assembly
-                            skip host assembly step (default: $params.skip_host_assembly)
-                           
         --skip_assembly_quality
                             skip assembly quality assessment (default: $params.skip_assembly_quality)
     Miscellaneous:
@@ -84,7 +81,6 @@ rawReads = Channel
 
 endosymbiont_reference = Channel
     .fromPath( params.endosymbiont_reference, type: 'file')
-
 
 
 process raw_qc {
@@ -240,12 +236,14 @@ process host_read_filtering {
     tuple val(name), file('mitogenome.fa'), emit: host_filtered
 
     when:
-    ! params.skip_host_assembly && ! params.endosymbiont_only
+    ! params.endosymbiont_only 
 
 
     script:
     """
-    python3 $project_dir/bin/longest_contig.py $host_assembled
+    makeblastdb -in $project_dir/seqs/cox1.fa -title cox1 -parse_seqids -dbtype nucl -hash_index -out db
+    blastn -query $host_assembled -db db -outfmt "10 qseqid" -word_size 18 > seqid.txt
+    grep -F -f seqid.txt $host_assembled -A 1 > mitogenome.fa
     """
 }
 
@@ -286,7 +284,7 @@ process host_assembly_quality {
     file '*'
 
     when:
-    ! params.skip_assembly_quality && ! params.skip_host_assembly && ! params.endosymbiont_only
+    ! params.skip_assembly_quality && ! params.endosymbiont_only
 
     script:
     """
