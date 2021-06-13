@@ -3,8 +3,9 @@ FROM ubuntu:20.10
 LABEL author="Clemens Mauksch"
 
 RUN apt-get update --fix-missing && apt-get install sudo
+RUN sudo apt-get update --fix-missing
 
-RUN sudo apt-get install -y apt-utils openjdk-14-jdk default-jre curl python3 cutadapt fastqc trim-galore abyss wget git
+RUN sudo apt-get install -y apt-utils openjdk-14-jdk default-jre curl python3 cutadapt fastqc abyss wget git ncbi-blast+ trim-galore --fix-missing
 
 RUN adduser --disabled-password --gecos '' pipeline
 RUN adduser pipeline sudo
