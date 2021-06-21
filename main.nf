@@ -41,9 +41,6 @@ def helpMessage() {
         --skip_qc           skip reads quality assessment (default: $params.skip_qc)
         --skip_endosymbiont_assembly
                             skip endosymbiont assembly step (default: $params.skip_endosymbiont_assembly)
-        --skip_host_assembly
-                            skip host assembly step (default: $params.skip_host_assembly)
-                           
         --skip_assembly_quality
                             skip assembly quality assessment (default: $params.skip_assembly_quality)
     Miscellaneous:
@@ -86,10 +83,9 @@ endosymbiont_reference = Channel
     .fromPath( params.endosymbiont_reference, type: 'file')
 
 
-
 process raw_qc {
 
-    publishDir "${params.output}/$name/quality_control"
+    publishDir "${params.output}/$name/quality_control", mode: 'copy'
 
     tag "$name"
 
@@ -131,7 +127,7 @@ process trimming {
 
 process trimmed_qc {
 
-    publishDir "${params.output}/$name/quality_control"
+    publishDir "${params.output}/$name/quality_control", mode: 'copy'
 
     tag "$name"
 
@@ -149,6 +145,22 @@ process trimmed_qc {
     fastqc --threads ${params.threads/2} --quiet ${reads[0]} ${reads[1]}
     """
 
+}
+
+process first_assembly {
+
+    tag "$name"
+
+    input:
+    tuple val(name), file(reads)
+
+    output:
+    tuple val(name), file('megahit_out/final.contigs.fa')
+
+    script:
+    """
+    megahit -1 ${reads[0]} -2 ${reads[1]} -t ${params.threads} -m ${params.memory}
+    """
 }
 
 process endosymbiont_mapping {
@@ -188,10 +200,9 @@ process endosymbiont_read_filtering {
     """
 }
 
-
 process endosymbiont_assembly {
 
-    publishDir "${params.output}/$name/endosymbiont_assembly"
+    publishDir "${params.output}/$name/endosymbiont_assembly", mode: 'copy'
 
     tag "$name"
 
@@ -206,34 +217,13 @@ process endosymbiont_assembly {
 
     script:
     """
-    abyss-pe np=${params.threads/2} name=marta2_endosym k=96 in='$filtered' B=${params.memory/2}G H=3 kc=3 v=-v
+    abyss-pe np=${params.threads} name=$name k=96 in='$filtered' B=${params.memory}G H=3 kc=3 v=-v
     """
-}
-
-
-process host_assembly {
-
-    tag "$name"
-
-    input:
-    tuple val(name), file(reads)
-
-    output:
-    tuple val(name), file('megahit_out/final.contigs.fa'), emit: host_assembled
-
-    when:
-    ! params.skip_host_assembly && ! params.endosymbiont_only
-
-    script:
-    """
-    megahit -1 ${reads[0]} -2 ${reads[1]} -t ${params.threads/2} --k-min 113 --k-max 113
-    """
-
 }
 
 process host_read_filtering {
 
-    publishDir "${params.output}/$name/host_assembly"
+    publishDir "${params.output}/$name/host_assembly", mode: 'copy'
     
     tag "$name"
 
@@ -244,19 +234,27 @@ process host_read_filtering {
     tuple val(name), file('mitogenome.fa'), emit: host_filtered
 
     when:
-    ! params.skip_host_assembly && ! params.endosymbiont_only
+    ! params.endosymbiont_only 
 
 
     script:
     """
-    python3 $project_dir/bin/longest_contig.py $host_assembled
+    makeblastdb -in $project_dir/seqs/cox1.fa -title cox1 -parse_seqids -dbtype nucl -hash_index -out db
+    for i in {11..25..1}
+      do
+        blastn -query $host_assembled -db db -outfmt "10 qseqid" -word_size \$i > seqid.txt
+        grep -F -f seqid.txt $host_assembled -A 1 > mitogenome.fa
+        if [[ \$(wc -l mitogenome.fa) = "2 mitogenome.fa" ]];
+        then
+          break
+        fi
+      done
     """
 }
 
-
 process endosymbiont_assembly_quality {
 
-    publishDir "${params.output}/$name/endosymbiont_assembly"
+    publishDir "${params.output}/$name/endosymbiont_assembly", mode: 'copy'
 
     tag "$name"
 
@@ -279,7 +277,7 @@ process endosymbiont_assembly_quality {
 
 process host_assembly_quality {
 
-    publishDir "${params.output}/$name/host_assembly"
+    publishDir "${params.output}/$name/host_assembly", mode: 'copy'
 
 
     tag "$name"
@@ -291,7 +289,7 @@ process host_assembly_quality {
     file '*'
 
     when:
-    ! params.skip_assembly_quality && ! params.skip_host_assembly && ! params.endosymbiont_only
+    ! params.skip_assembly_quality && ! params.endosymbiont_only
 
     script:
     """
@@ -347,15 +345,15 @@ workflow {
     trimmed_qc(trimming.out)
     if (params.skip_trimming) {
         endosymbiont_mapping(rawReads, endosymbiont_reference)
-        host_assembly(rawReads) }
+        first_assembly(rawReads) }
     else {
         endosymbiont_mapping(trimming.out, endosymbiont_reference)
-        host_assembly(trimming.out) }
+        first_assembly(trimming.out) }
     coverage_estimate(endosymbiont_mapping.out.alignment_stats, trimming.out, endosymbiont_reference)
     endosymbiont_read_filtering(endosymbiont_mapping.out.endosym_mapped)
     endosymbiont_assembly(endosymbiont_read_filtering.out.endosym_filtered)
     endosymbiont_assembly_quality(endosymbiont_assembly.out.endosym_assembled, endosymbiont_reference)
-    host_read_filtering(host_assembly.out.host_assembled)
+    host_read_filtering(first_assembly.out)
     host_assembly_quality(host_read_filtering.out.host_filtered)
 
 }
@@ -373,3 +371,4 @@ workflow.onError {
     log.info "Workflow execution stopped with the following message:"
     log.info "  " + workflow.errorMessage
 }
+
