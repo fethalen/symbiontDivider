@@ -13,8 +13,9 @@ An easy to use pipeline to separate endosymbiont genomes from their host's
 4. Coverage estimate
 5. Read filtering using samtools
 6. Assembly of endosymbiont genome using ABySS
-7. Assembly of host mitogenome using megahit
-8. Assembly quality assessment using QUAST
+7. De novo assembly using megahit
+8. Finding of mitogenome using NCBI blastn
+9. Assembly quality assessment using QUAST
 
 ## Installation
 
@@ -33,7 +34,7 @@ nextflow run main.nf --reads '*_R{1,2}\\.fastq.gz' --endosymbiont_reference '*_e
 
 ## ToDo
 
-- (Assembling host mitogenome de novo)
 - Visualisation of quality
 - Compression for long time storage
+- Better strategy for endosymbiont assembly
 - (CPU Core management)
