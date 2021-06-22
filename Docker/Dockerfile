@@ -3,8 +3,9 @@ FROM ubuntu:20.10
 LABEL author="Clemens Mauksch"
 
 RUN apt-get update --fix-missing && apt-get install sudo
+RUN sudo apt-get update --fix-missing
 
-RUN sudo apt-get install -y apt-utils openjdk-14-jdk default-jre curl python3 cutadapt fastqc trim-galore abyss wget git
+RUN sudo apt-get install -y apt-utils openjdk-14-jdk default-jre curl python3 cutadapt fastqc abyss wget git ncbi-blast+ trim-galore --fix-missing
 
 RUN adduser --disabled-password --gecos '' pipeline
 RUN adduser pipeline sudo
@@ -23,10 +24,7 @@ RUN conda update conda
 RUN conda update anaconda
 RUN conda update --all
 
-RUN conda install -c bioconda bowtie2 samtools megahit
+RUN conda install -c bioconda bowtie2 samtools megahit seqkit
 
 RUN git clone https://github.com/ablab/quast && cd quast && ./setup.py install && cd ..
 ENV PATH /home/pipeline/Docker/quast:$PATH
-
-RUN wget http://cab.spbu.ru/files/release3.15.2/SPAdes-3.15.2-Linux.tar.gz && tar -xzf SPAdes-3.15.2-Linux.tar.gz
-ENV PATH /home/pipeline/Docker/SPAdes-3.15.2-Linux/bin:$PATH
