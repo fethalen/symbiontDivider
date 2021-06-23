@@ -172,14 +172,15 @@ process endosymbiont_mapping {
     file endosymbiont_reference
 
     output:
-    tuple val(name), file('*_endosym.sam'), emit: endosym_mapped
-    path 'log.txt', emit: alignment_stats
+    tuple val(name), file('endosymbiont.fa'), emit: endosym_mapped
 
     script:
     """
-    bowtie2-build ${endosymbiont_reference} endosymbiont
-    bowtie2 -x endosymbiont -p ${params.threads/2} -f $contigs -S ${name}_endosym.sam --very-sensitive
-    cat .command.log > log.txt
+    makeblastdb -in $endosymbiont_reference -title endosymbiont -parse_seqids -dbtype nucl -hash_index -out db
+    blastn -query $contigs -db db -outfmt "10 qseqid" > seqid.txt
+    grep -F -f seqid.txt $contigs -A 1 > blasted_contigs.fa
+    grep -v ">" $endosymbiont_reference | tr -d "\n" | wc -c > endosymbiont_seq_length.txt
+    python3 $project_dir/bin/endosymbiont.py endosymbiont_seq_length.txt $contigs
     """
 }
 
@@ -190,19 +191,15 @@ process endosymbiont_read_filtering {
     tag "$name"
 
     input:
-    tuple val(name), file(contigs)
-    file endosymbiont_reference
+    tuple val(name), file(endosym_mapped)
 
     output:
-    tuple val(name), file('*_endosymbiont.fa'), emit: endosym_filtered
+    tuple val(name), file('*_endosym.sam'), emit: endosym_filtered
 
 
     script:
     """
-    makeblastdb -in $endosymbiont_reference -title endosymbiont -parse_seqids -dbtype nucl -hash_index -out db
-    blastn -query $contigs -db db -outfmt "10 qseqid" -word_size 18 > seqid.txt
-    grep -F -f seqid.txt $contigs -A 1 > ${name}_endosymbiont.fa
-    sed -n -i '/--*/!p' ${name}_endosymbiont.fa
+    samtools view -@ ${params.threads/2} -h -F 4 $endosym_mapped > mapped_${endosym_mapped}
     """
 }
 
@@ -246,8 +243,15 @@ process host_read_filtering {
     script:
     """
     makeblastdb -in $project_dir/seqs/cox1.fa -title cox1 -parse_seqids -dbtype nucl -hash_index -out db
-    blastn -query $host_assembled -db db -outfmt "10 qseqid" -word_size 18 > seqid.txt
-    grep -F -f seqid.txt $host_assembled -A 1 > mitogenome.fa
+    for i in {11..25..1}
+      do
+        blastn -query $host_assembled -db db -outfmt "10 qseqid" -word_size \$i > seqid.txt
+        grep -F -f seqid.txt $host_assembled -A 1 > mitogenome.fa
+        if [[ \$(wc -l mitogenome.fa) = "2 mitogenome.fa" ]];
+        then
+          break
+        fi
+      done
     """
 }
 
@@ -346,8 +350,8 @@ workflow {
         first_assembly(rawReads) }
     else {
         first_assembly(trimming.out) }
-    endosymbiont_read_filtering(first_assembly.out, endosymbiont_reference)
-    endosymbiont_assembly_quality(endosymbiont_read_filtering.out, endosymbiont_reference)
+    endosymbiont_mapping(first_assembly.out, endosymbiont_reference)
+    endosymbiont_assembly_quality(endosymbiont_mapping.out, endosymbiont_reference)
     host_read_filtering(first_assembly.out)
     host_assembly_quality(host_read_filtering.out.host_filtered)
 
