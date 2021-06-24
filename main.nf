@@ -198,7 +198,6 @@ process host_read_filtering {
     when:
     ! params.endosymbiont_only 
 
-
     script:
     """
     makeblastdb -in $project_dir/seqs/cox1.fa -title cox1 -parse_seqids -dbtype nucl -hash_index -out db
@@ -240,7 +239,6 @@ process endosymbiont_assembly_quality {
 process host_assembly_quality {
 
     publishDir "${params.output}/$name/host_assembly", mode: 'copy'
-
 
     tag "$name"
 
@@ -339,6 +337,7 @@ workflow {
         mapping_for_coverage_estimate(trimming.out, endosymbiont_mapping.out)
         coverage_estimate(mapping_for_coverage_estimate.out, trimming.out, endosymbiont_mapping.out)
     }
+
     host_read_filtering(first_assembly.out)
     host_assembly_quality(host_read_filtering.out.host_filtered)
 
@@ -357,3 +356,4 @@ workflow.onError {
     log.info "Workflow execution stopped with the following message:"
     log.info "  " + workflow.errorMessage
 }
+

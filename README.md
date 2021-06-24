@@ -28,12 +28,14 @@ cd ..
 ## Usage
 
 ```bash
-nextflow run main.nf --reads '*_R{1,2}\\.fastq.gz' --endosymbiont_reference '*_endosymRef\\.fna' -with-docker
+nextflow run main.nf --reads '*_R{1,2}\\.fastq' --endosymbiont_reference '*_endosymRef\\.fna' -with-docker
 ```
-I highly recommend unpacking your reads before using! 
+I highly recommend to unpack your files before starting the programm!
+
 
 ## ToDo
 
 - Visualisation of quality
 - Compression for long time storage
+- Better strategy for endosymbiont assembly
 - (CPU Core management)
