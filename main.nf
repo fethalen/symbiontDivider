@@ -172,15 +172,17 @@ process endosymbiont_mapping {
     file endosymbiont_reference
 
     output:
-    tuple val(name), file('endosymbiont.fa'), emit: endosym_mapped
+    tuple val(name), file('blasted_contigs_dashes_removed.fa'), emit: endosym_mapped
 
     script:
     """
     makeblastdb -in $endosymbiont_reference -title endosymbiont -parse_seqids -dbtype nucl -hash_index -out db
+    echo 1
     blastn -query $contigs -db db -outfmt "10 qseqid" > seqid.txt
+    echo 2
     grep -F -f seqid.txt $contigs -A 1 > blasted_contigs.fa
-    grep -v ">" $endosymbiont_reference | tr -d "\n" | wc -c > endosymbiont_seq_length.txt
-    python3 $project_dir/bin/endosymbiont.py endosymbiont_seq_length.txt $contigs
+    echo 3
+    grep -v "-" blasted_contigs.fa > blasted_contigs_dashes_removed.fa
     """
 }
 
