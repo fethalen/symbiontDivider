@@ -1,0 +1,10 @@
+example_pipelines/
+in_silico/
+output/
+programs/
+work/
+*.nextflow*
+*.yml
+.vscode/
+.nextflow/
+start.sh
