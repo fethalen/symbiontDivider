@@ -177,11 +177,8 @@ process endosymbiont_mapping {
     script:
     """
     makeblastdb -in $endosymbiont_reference -title endosymbiont -parse_seqids -dbtype nucl -hash_index -out db
-    echo 1
     blastn -query $contigs -db db -outfmt "10 qseqid" > seqid.txt
-    echo 2
     grep -F -f seqid.txt $contigs -A 1 > blasted_contigs.fa
-    echo 3
     grep -v "-" blasted_contigs.fa > blasted_contigs_dashes_removed.fa
     """
 }
