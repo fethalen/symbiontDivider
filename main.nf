@@ -9,13 +9,14 @@ def helpMessage() {
     Description:
         An easy to use pipeline to separate endosymbiont genomes from their host's
     Pipeline summary:
-        1. Trimming using Trim Galore!
-        2. Quality Control using FastQC
-        3. Mapping of endosymbiont reads on reference genome using bowtie2
-        4. Filtering the mpped reads using samtools
-        5. Assembly of endosymbiont genome using ABySS
-        6. Assembly of host genome using ABySS
-        7. Assembly quality assesment using BUSCO
+        1. Trimming using TrimGalore!
+        2. Read quality control using FastQC
+        3. De Novo assembly using megahit
+        4. Filtering endosymbiont genome using blastn
+        5. Filtering host mitogenome using blastn
+        6. Read mapping for coverage estimate using bowtie2
+        7. Coverage estimate
+        8. Assembly quality assessment using QUAST
     Usage:
         nextflow run main.nf --reads '*_R{1,2}\\.fastq.gz' --endosymbiont_reference '*_endosymRef\\.fna' --host_reference '*_hostRef\\.fna'
         
