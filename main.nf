@@ -183,46 +183,6 @@ process endosymbiont_mapping {
     """
 }
 
-process endosymbiont_read_filtering {
-    
-    publishDir "${params.output}/$name/endosymbiont_assembly", mode: 'copy'
-
-    tag "$name"
-
-    input:
-    tuple val(name), file(endosym_mapped)
-
-    output:
-    tuple val(name), file('*_endosym.sam'), emit: endosym_filtered
-
-
-    script:
-    """
-    samtools view -@ ${params.threads/2} -h -F 4 $endosym_mapped > mapped_${endosym_mapped}
-    """
-}
-
-process endosymbiont_assembly {
-
-    publishDir "${params.output}/$name/endosymbiont_assembly", mode: 'copy'
-
-    tag "$name"
-
-    input:
-    tuple val(name), file(filtered)
-
-    output:
-    tuple val(name), file('*scaffolds.fa'), emit: endosym_assembled
-
-    when:
-    ! params.skip_endosymbiont_assembly
-
-    script:
-    """
-    abyss-pe np=${params.threads} name=$name k=96 in='$filtered' B=${params.memory}G H=3 kc=3 v=-v
-    """
-}
-
 process host_read_filtering {
 
     publishDir "${params.output}/$name/host_assembly", mode: 'copy'
@@ -300,6 +260,26 @@ process host_assembly_quality {
 
 }
 
+process mapping_for_coverage_estimate{
+
+    tag "$name"
+
+    input:
+    tuple val(name), file(reads)
+    tuple val(name), file(assembled_endosymbiont)
+
+    output:
+    path 'log.txt', emit: alignment_stats
+
+    script:
+    """
+    bowtie2-build ${assembled_endosymbiont} endosymbiont
+    bowtie2 -x endosymbiont -p ${params.threads/2} -1 ${reads[0]} -2 ${reads[1]} -S ${name}_endosym.sam --very-sensitive
+    cat .command.log > log.txt
+    """
+
+}
+
 process coverage_estimate {
 
     publishDir "${params.output}/$name"
@@ -309,14 +289,14 @@ process coverage_estimate {
     input:
     path stats
     tuple val(name), file(reads)
-    file endosymbiont_reference
+    file assembled_endosymbiont
 
     output:
     file 'coverage.txt'
 
     script:
     """
-    grep -v ">" $endosymbiont_reference | tr -d "\n" | wc -c > host_count.txt
+    grep -v ">" $assembled_endosymbiont | tr -d "\n" | wc -c > host_count.txt
     cat $stats > alignment_rate.txt
     cat ${reads[0]} | paste - - - - | cut -f 2 | tr -d '\n' | wc -c > base_count.txt
     python3 $project_dir/bin/coverage_estimate.py
@@ -351,6 +331,14 @@ workflow {
         first_assembly(trimming.out) }
     endosymbiont_mapping(first_assembly.out, endosymbiont_reference)
     endosymbiont_assembly_quality(endosymbiont_mapping.out, endosymbiont_reference)
+    if (params.skip_trimming) { 
+        mapping_for_coverage_estimate(rawReads, endosymbiont_mapping.out)
+        coverage_estimate(mapping_for_coverage_estimate.out, rawReads, endosymbiont_mapping.out)
+    }
+    else {
+        mapping_for_coverage_estimate(trimming.out, endosymbiont_mapping.out)
+        coverage_estimate(mapping_for_coverage_estimate.out, trimming.out, endosymbiont_mapping.out)
+    }
     host_read_filtering(first_assembly.out)
     host_assembly_quality(host_read_filtering.out.host_filtered)
 
