@@ -166,6 +166,8 @@ process first_assembly {
 
 process endosymbiont_mapping {
 
+    publishDir "${params.output}/$name/endosymbiont_assembly", mode: 'copy'
+    
     tag "$name"
 
     input:
@@ -173,14 +175,14 @@ process endosymbiont_mapping {
     file endosymbiont_reference
 
     output:
-    tuple val(name), file('blasted_contigs_dashes_removed.fa'), emit: endosym_mapped
+    tuple val(name), file('endosymbiont_genome.fa'), emit: endosym_mapped
 
     script:
     """
     makeblastdb -in $endosymbiont_reference -title endosymbiont -parse_seqids -dbtype nucl -hash_index -out db
     blastn -query $contigs -db db -outfmt "10 qseqid" > seqid.txt
     grep -F -f seqid.txt $contigs -A 1 > blasted_contigs.fa
-    grep -v "-" blasted_contigs.fa > blasted_contigs_dashes_removed.fa
+    grep -v "-" blasted_contigs.fa > endosymbiont_genome.fa
     """
 }
 
@@ -198,6 +200,7 @@ process host_read_filtering {
 
     when:
     ! params.endosymbiont_only 
+
 
     script:
     """
@@ -240,6 +243,7 @@ process endosymbiont_assembly_quality {
 process host_assembly_quality {
 
     publishDir "${params.output}/$name/host_assembly", mode: 'copy'
+
 
     tag "$name"
 
@@ -338,7 +342,6 @@ workflow {
         mapping_for_coverage_estimate(trimming.out, endosymbiont_mapping.out)
         coverage_estimate(mapping_for_coverage_estimate.out, trimming.out, endosymbiont_mapping.out)
     }
-
     host_read_filtering(first_assembly.out)
     host_assembly_quality(host_read_filtering.out.host_filtered)
 
@@ -357,4 +360,3 @@ workflow.onError {
     log.info "Workflow execution stopped with the following message:"
     log.info "  " + workflow.errorMessage
 }
-
