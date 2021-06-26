@@ -16,6 +16,11 @@ An easy to use pipeline to separate endosymbiont genomes from their host's
 7. Coverage estimate
 8. Assembly quality assessment using QUAST
 
+## Requirements
+
+- Docker
+- Nextflow
+
 ## Installation
 
 ```bash
