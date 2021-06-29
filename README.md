@@ -26,6 +26,7 @@ An easy to use pipeline to separate endosymbiont genomes from their host's
 ```bash
 git clone https://github.com/clemensma/symbiontDivider
 cd symbiontDivider/Docker
+chmod +x build.sh
 ./build.sh
 cd ..
 ```
