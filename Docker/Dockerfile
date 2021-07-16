@@ -6,6 +6,7 @@ RUN apt-get update --fix-missing && apt-get install sudo
 RUN sudo apt-get update --fix-missing
 
 RUN sudo apt-get install -y apt-utils openjdk-14-jdk default-jre curl python3 cutadapt fastqc wget git ncbi-blast+ trim-galore --fix-missing
+RUN sudo apt-get install -y pigz
 
 RUN adduser --disabled-password --gecos '' pipeline
 RUN adduser pipeline sudo
