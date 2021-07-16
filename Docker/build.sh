@@ -1,2 +1,2 @@
 #!/bin/bash
-docker build -t pipeline .
+docker build -t symbiontdivider .
