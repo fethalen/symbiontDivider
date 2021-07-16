@@ -33,10 +33,13 @@ cd ..
 
 ## Usage
 
+For read files named something like 'name_of_sample_R1.fastq' and 'name_of_sample_R2.fastq' use the following.
 ```bash
 nextflow run main.nf --reads '*_R{1,2}\.fastq' --endosymbiont_reference '*_endosymRef\.fna' -with-docker
 ```
-I highly recommend to unpack your files before starting the programm!
+If your read files are named differently adjust the pattern specified accordingly.
+
+Also I highly recommend to unpack your files before starting the programm!
 
 
 ## ToDo
