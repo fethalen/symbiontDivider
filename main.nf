@@ -205,15 +205,22 @@ process host_read_filtering {
     script:
     """
     makeblastdb -in $project_dir/seqs/cox1.fa -title cox1 -parse_seqids -dbtype nucl -hash_index -out db
+    echo "blastdb created"
     for i in {11..25..1}
       do
+        echo "starting iteration with word size \$i"
         blastn -query $host_assembled -db db -outfmt "10 qseqid" -word_size \$i > seqid.txt
-        grep -F -f seqid.txt $host_assembled -A 1 > mitogenome.fa
-        if [[ \$(wc -l mitogenome.fa) = "2 mitogenome.fa" ]];
+        echo "blastn complete"
+        cat -n seqid.txt | sort -uk2 | sort -nk1 | cut -f2- | cat > unique_seqid.txt
+        echo "made seqids unique"
+        if [[ \$(wc -l unique_seqid.txt) = "1 unique_seqid.txt" ]];
         then
+          grep -F -f seqid.txt $host_assembled -A 1 > mitogenome.fa
+          echo "mitogenome found"
           break
         fi
       done
+    echo "process successful"
     """
 }
 
