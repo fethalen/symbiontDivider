@@ -8,3 +8,5 @@ work/
 .vscode/
 .nextflow/
 start.sh
+*.html
+*.png*
