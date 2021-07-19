@@ -204,6 +204,7 @@ process host_read_filtering {
 
     script:
     """
+    touch mitogenome.fa
     makeblastdb -in $project_dir/seqs/cox1.fa -title cox1 -parse_seqids -dbtype nucl -hash_index -out db
     echo "blastdb created"
     for i in {11..25..1}
