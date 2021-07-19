@@ -8,5 +8,5 @@ work/
 .vscode/
 .nextflow/
 start.sh
-*.html
+*.html*
 *.png*
