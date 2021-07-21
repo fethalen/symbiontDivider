@@ -221,6 +221,11 @@ process host_read_filtering {
         then
           grep -F -f prev_seqid.txt $host_assembled -A 1 > mitogenome.fa
           echo "multiple possible mitogenomes found"
+          grep -v "--" mitogenome.fa > mitogenome_dashes_removed.fa
+          echo "removed dashes"
+          rm mitogenome.fa
+          echo "removed old mitogenome"
+          cat mitogenome_dashes_removed.fa > mitogenome.fa
           break
         fi
         if [[ \$(wc -l unique_seqid.txt) = "1 unique_seqid.txt" ]];
