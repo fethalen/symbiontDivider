@@ -205,18 +205,27 @@ process host_read_filtering {
     script:
     """
     touch mitogenome.fa
+    touch prev_seqid.txt
+    touch unique_seqid.txt
     makeblastdb -in $project_dir/seqs/cox1.fa -title cox1 -parse_seqids -dbtype nucl -hash_index -out db
     echo "blastdb created"
     for i in {11..25..1}
       do
         echo "starting iteration with word size \$i"
+        cat unique_seqid.txt > prev_seqid.txt
         blastn -query $host_assembled -db db -outfmt "10 qseqid" -word_size \$i > seqid.txt
         echo "blastn complete"
         cat -n seqid.txt | sort -uk2 | sort -nk1 | cut -f2- | cat > unique_seqid.txt
         echo "made seqids unique"
+        if [[ \$(wc -l unique_seqid.txt) = "0 unique_seqid.txt" ]];
+        then
+          grep -F -f prev_seqid.txt $host_assembled -A 1 > mitogenome.fa
+          echo "multiple possible mitogenomes found"
+          break
+        fi
         if [[ \$(wc -l unique_seqid.txt) = "1 unique_seqid.txt" ]];
         then
-          grep -F -f seqid.txt $host_assembled -A 1 > mitogenome.fa
+          grep -F -f unique_seqid.txt $host_assembled -A 1 > mitogenome.fa
           echo "mitogenome found"
           break
         fi
