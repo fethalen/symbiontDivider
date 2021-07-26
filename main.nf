@@ -60,17 +60,18 @@ if ( params.version ) exit 0, versionNumber()
 // Display a help message upon request
 if ( params.help ) exit 0, helpMessage()
 
-// Input validation
+// Input validation reads
 if ( params.reads == null) {
     exit 1, "Missing mandatory argument '--reads'\n" +
             "Launch this workflow with '--help' for more info"
 }
-
+// Input validation endosymbiont reference
 if ( params.endosymbiont_reference == null) {
     exit 1, "Missing mandatory argument '--endosymbiont_reference'\n" +
             "Launch this workflow with '--help' for more info"
 }
 
+// Creation of read pair channel with file extension filter and check if empty
 rawReads = Channel
     .fromFilePairs( params.reads, size: 2, type: 'file' )
     .filter { it =~/.*\.fastq\.gz|.*\.fq\.gz|.*\.fastq|.*\.fq/ }
@@ -80,104 +81,163 @@ rawReads = Channel
              "Try enclosing the path in single-quotes (')\n" +
              "Valid file types: '.fastq.gz', '.fq.gz', '.fastq', or '.fq'" }
 
+// Creation of endosymbiont reference channel
 endosymbiont_reference = Channel
     .fromPath( params.endosymbiont_reference, type: 'file')
 
 
-process raw_qc {
+process RAWQC {
 
+    /* 
+        Process Description:
+        Quality control of raw reads with FastQC
+    */
+
+    // Copies output file in output folder
     publishDir "${params.output}/$name/quality_control", mode: 'copy'
 
+    // Name of read files
     tag "$name"
 
     input:
+    // A tuple containing the name of the raw read files and the files themself
     tuple val(name), file(reads)
 
     output:
+    // FastQC outputs the results as .html files -> those are output
     file '*.html'
 
     when:
+    // This process only executes when QC is not skipped
     ! skip_qc
 
     script:
+    // FastQC command with half of input threads and in quiet mode (see FastQC documentation for details)
     """
     fastqc --threads ${params.threads/2} --quiet ${reads[0]} ${reads[1]}
     """
 
 }
 
-process trimming {
+process TRIMMING {
 
+    /* 
+        Process Description:
+        Trimming of read files using TrimGalore!
+    */
+    
+    // Name of read files
     tag "$name"
 
     input:
+    // A tuple containing the name of the raw read files and the files themself
     tuple val(name), file(reads)
 
     output:
+    // TrimGalore! outputs the trimmed reads in .fg files that are output in a tuple comined with the name of the files
     tuple val(name), file('*.fq*'), emit: trimmed_reads
 
     when:
+    // This process is only executed when trimming is not skipped
     ! params.skip_trimming
 
     script:
+    // TrimGalore! command with half of input threads and paired read options (see TrimGalore! documentation for details)
     """
     trim_galore --paired --cores ${params.threads/2} ${reads[0]} ${reads[1]}
     """
 
 }
 
-process trimmed_qc {
+process TRIMMEDQC {
 
+    /* 
+        Process Description:
+        Quality control of trimmed reads with FastQC
+    */
+
+    // Copies output file in output folder
     publishDir "${params.output}/$name/quality_control", mode: 'copy'
 
+    // Name of read files
     tag "$name"
 
     input:
+    // A tuple containing the name of the trimmed read files and the files themself
     tuple val(name), file(reads)
 
     output:
+    // FastQC outputs the results as .html files -> those are output
     file '*.html'
 
     when:
+    // This process is only executed if QC and trimming are not skipped
     ! skip_qc && ! params.skip_trimming
 
     script:
+    // FastQC command with half of input threads and in quiet mode (see FastQC documentation for details)
     """
     fastqc --threads ${params.threads/2} --quiet ${reads[0]} ${reads[1]}
     """
 
 }
 
-process first_assembly {
+process DENOVOASSEMBLY {
 
+    /* 
+        Process Description:
+        De novo assembly of reads using megahit assembler
+    */
+
+    // Name of read files
     tag "$name"
 
     input:
+    // A tuple containing the name of the raw/trimmed read files and the files themself
     tuple val(name), file(reads)
 
     output:
+    // megahit outputs the assembled genome as a .fa file called "final.contigs.fa" -> output of the process
     tuple val(name), file('megahit_out/final.contigs.fa')
 
     script:
+    // megahit command using input threads and memory (for details see megahit documentation)
     """
     megahit -1 ${reads[0]} -2 ${reads[1]} -t ${params.threads} -m ${params.memory}
     """
 }
 
-process endosymbiont_mapping {
+process ENDOSYMBIONTREADFILTERING {
 
+    /* 
+        Process Description:
+        Extraction of contigs belonging to the endosymbiont using blastn and grep
+    */
+
+    // Copies output file in output folder
     publishDir "${params.output}/$name/endosymbiont_assembly", mode: 'copy'
     
+    // Name of read files
     tag "$name"
 
     input:
+    // A tuple containing the name of the raw/trimmed read files and the contigs assembled before
     tuple val(name), file(contigs)
+    // A fasta file containing the endosymbiont reference genome
     file endosymbiont_reference
 
     output:
+    // The process outputs a tuple with the reads name and a .fa file containing all the contigs belonging to the endosymbiont genome
     tuple val(name), file('endosymbiont_genome.fa'), emit: endosym_mapped
 
     script:
+    /*
+    Script description:
+    1. A blast database from the reference genome is created
+    2. A blastn search with the de novo assembled contigs is performed and found contig ids are saved in a .txt
+    3. Based on the contig ids, contigs are grepped from the de novo assembled contigs
+    4. Dashes incorporated by grep are removed
+    */
     """
     makeblastdb -in $endosymbiont_reference -title endosymbiont -parse_seqids -dbtype nucl -hash_index -out db
     blastn -query $contigs -db db -outfmt "10 qseqid" > seqid.txt
@@ -186,37 +246,72 @@ process endosymbiont_mapping {
     """
 }
 
-process host_read_filtering {
+process HOSTMITOGENOMEFILTERING {
 
+    /* 
+        Process Description:
+        Extraction of contig/s belonging to the host mitogenome using blastn and grep
+    */
+
+    // Copies output file in output folder
     publishDir "${params.output}/$name/host_assembly", mode: 'copy'
     
+    // Name of read files
     tag "$name"
 
     input:
+    // A tuple containing the name of the raw/trimmed read files and the contigs assembled before
     tuple val(name), file(host_assembled)
 
     output:
+    // The process outputs a tuple with the reads name and a .fa file containing all the contigs belonging to the host mitogenome
     tuple val(name), file('mitogenome.fa'), emit: host_filtered
 
     when:
+    // This process is only executed if the endosymbont only mode is not selected
     ! params.endosymbiont_only 
 
 
     script:
+    /*
+    Script description:
+    1. Create empty files for intermediate storage
+    2. Create a blast database from a sequence for the cox1 gene (mitogenome exclusive gene)
+    3. Iterate from 11 to 25
+        3.1. Concatenate the previous found reads to prev_seqid.txt
+        3.2. Blastn search with word size determined by iteration number, using de novo assembled reads as query
+        3.3. Determined seqids are made unique and cat nto unique_seqid.txt
+        3.4. If the unique_seqid.txt is empty -> grep contigs based on previously found seqids -> remove dashes implemented by grep -> break iteration
+        3.5. If the unique_seqid.txt has 1 entry -> grep corrisponding contig -> break iteration
+    */
     """
     touch mitogenome.fa
+    touch prev_seqid.txt
+    touch unique_seqid.txt
     makeblastdb -in $project_dir/seqs/cox1.fa -title cox1 -parse_seqids -dbtype nucl -hash_index -out db
     echo "blastdb created"
     for i in {11..25..1}
       do
         echo "starting iteration with word size \$i"
+        cat unique_seqid.txt > prev_seqid.txt
         blastn -query $host_assembled -db db -outfmt "10 qseqid" -word_size \$i > seqid.txt
         echo "blastn complete"
         cat -n seqid.txt | sort -uk2 | sort -nk1 | cut -f2- | cat > unique_seqid.txt
         echo "made seqids unique"
+        if [[ \$(wc -l unique_seqid.txt) = "0 unique_seqid.txt" ]];
+        then
+          grep -F -f prev_seqid.txt $host_assembled -A 1 > mitogenome.fa
+          echo "multiple possible mitogenomes found"
+          grep -v "--" mitogenome.fa > mitogenome_dashes_removed.fa
+          echo "removed dashes"
+          rm mitogenome.fa
+          echo "removed old mitogenome"
+          cat mitogenome_dashes_removed.fa > mitogenome.fa
+          break
+        fi
         if [[ \$(wc -l unique_seqid.txt) = "1 unique_seqid.txt" ]];
         then
-          grep -F -f seqid.txt $host_assembled -A 1 > mitogenome.fa
+          grep -F -f unique_seqid.txt $host_assembled -A 1 > mitogenome.fa
           echo "mitogenome found"
           break
         fi
@@ -225,64 +320,101 @@ process host_read_filtering {
     """
 }
 
-process endosymbiont_assembly_quality {
+process ENDOSYMBIONTGENOMEQUALITY {
 
+    /* 
+        Process Description:
+        Quality assessment of found endosymbiont genome using quast
+    */
+
+    // Copies output file in output folder
     publishDir "${params.output}/$name/endosymbiont_assembly", mode: 'copy'
 
+    // Name of read files
     tag "$name"
 
     input:
+    // A tuple containing the name of the raw/trimmed read files and the contigs belonging to the endosymbiont genome
     tuple val(name), file(endosym)
+    // A fasta file containing the endosymbiont reference genome
     file endosymbiont_reference
 
     output:
+    // All files created by quast are output
     file '*'
 
     when:
-    ! params.skip_assembly_quality && ! params.skip_endosymbiont_assembly
+    // This process is only executed if the last quality assessment is not skipped
+    ! params.skip_assembly_quality
 
     script:
+    // quast command (see quast documentation for details)
     """
     quast.py $endosym -r $endosymbiont_reference
     """
 
 }
 
-process host_assembly_quality {
+process HOSTMITOGENOMEQUALITY {
 
+    /* 
+        Process Description:
+        Quality assessment of found host mitogenome using quast
+    */
+
+    // Copies output file in output folder
     publishDir "${params.output}/$name/host_assembly", mode: 'copy'
 
-
+    // Name of read files
     tag "$name"
 
     input:
+    // A tuple containing the name of the raw/trimmed read files and the contigs belonging to the host mitogenome
     tuple val(name), file(host)
 
     output:
+    // All files created by quast are output
     file '*'
 
     when:
+    // This process is only executed if the last quality assessment is not skipped and the endosymbiont only mode is not activated
     ! params.skip_assembly_quality && ! params.endosymbiont_only
 
     script:
+    // quast command (see quast documentation for details)
     """
     quast.py $host
     """
 
 }
 
-process mapping_for_coverage_estimate{
+process READMAPPINGFORCOVERAGE{
 
+    /* 
+        Process Description:
+        Mapping of raw/trimmed reads onto the found endosymbiont genome using bowtie2
+    */
+
+    // Name of read files
     tag "$name"
 
     input:
+    // A tuple containing the name of the raw/trimmed read files and the files themself
     tuple val(name), file(reads)
+    // A tuple containing the name of the raw/trimmed read files and the contigs belonging to the endosymbiont genome
     tuple val(name), file(assembled_endosymbiont)
 
     output:
+    // The log file created by bowtie2 is output
     path 'log.txt', emit: alignment_stats
 
     script:
+    /*
+    Script description:
+    1. Bowtie2 database is built from endosymbiont genome
+    2. bowtie mapping with half the input threads (se bowtie2 documentation for details)
+    3. command log is concatenated into log.txt
+    */
     """
     bowtie2-build ${assembled_endosymbiont} endosymbiont
     bowtie2 -x endosymbiont -p ${params.threads/2} -1 ${reads[0]} -2 ${reads[1]} -S ${name}_endosym.sam --very-sensitive
@@ -291,21 +423,39 @@ process mapping_for_coverage_estimate{
 
 }
 
-process coverage_estimate {
+process COVERAGEESTIMATE {
 
+    /* 
+        Process Description:
+        Estimation of sequencing coverage using alignment stats from bowtie2, length of the assembled endosymbiont and length of the input reads
+    */
+
+    // Copies output file in output folder
     publishDir "${params.output}/$name"
 
+    // Name of read files
     tag "$name"
 
     input:
+    // log.txt file from previous process
     path stats
+    // A tuple containing the name of the raw/trimmed read files and the files themself
     tuple val(name), file(reads)
+    // A .fa file containing the assembled endosymbiont genome
     file assembled_endosymbiont
 
     output:
+    // The process creates a file containign the coverage which is output
     file 'coverage.txt'
 
     script:
+    /*
+    Script description:
+    1. Determining the number of bases in the endosymbiont genome
+    2. Concatenating the alignment stats into a file
+    3. Determining the number of bases in the read files
+    4. Coverage estimate using a selfmade Python script
+    */
     """
     grep -v ">" $assembled_endosymbiont | tr -d "\n" | wc -c > host_count.txt
     cat $stats > alignment_rate.txt
@@ -333,25 +483,25 @@ process visualise_quality {
 */
 workflow {
 
-    raw_qc(rawReads)
-    trimming(rawReads)
-    trimmed_qc(trimming.out)
+    RAWQC(rawReads)
+    TRIMMING(rawReads)
+    TRIMMEDQC(TRIMMING.out)
     if (params.skip_trimming) {
-        first_assembly(rawReads) }
+        DENOVOASSEMBLY(rawReads) }
     else {
-        first_assembly(trimming.out) }
-    endosymbiont_mapping(first_assembly.out, endosymbiont_reference)
-    endosymbiont_assembly_quality(endosymbiont_mapping.out, endosymbiont_reference)
+        DENOVOASSEMBLY(TRIMMING.out) }
+    ENDOSYMBIONTREADFILTERING(DENOVOASSEMBLY.out, endosymbiont_reference)
+    ENDOSYMBIONTGENOMEQUALITY(ENDOSYMBIONTREADFILTERING.out, endosymbiont_reference)
     if (params.skip_trimming) { 
-        mapping_for_coverage_estimate(rawReads, endosymbiont_mapping.out)
-        coverage_estimate(mapping_for_coverage_estimate.out, rawReads, endosymbiont_mapping.out)
+        READMAPPINGFORCOVERAGE(rawReads, ENDOSYMBIONTREADFILTERING.out)
+        COVERAGEESTIMATE(READMAPPINGFORCOVERAGE.out, rawReads, ENDOSYMBIONTREADFILTERING.out)
     }
     else {
-        mapping_for_coverage_estimate(trimming.out, endosymbiont_mapping.out)
-        coverage_estimate(mapping_for_coverage_estimate.out, trimming.out, endosymbiont_mapping.out)
+        READMAPPINGFORCOVERAGE(TRIMMING.out, ENDOSYMBIONTREADFILTERING.out)
+        COVERAGEESTIMATE(READMAPPINGFORCOVERAGE.out, TRIMMING.out, ENDOSYMBIONTREADFILTERING.out)
     }
-    host_read_filtering(first_assembly.out)
-    host_assembly_quality(host_read_filtering.out.host_filtered)
+    HOSTMITOGENOMEFILTERING(DENOVOASSEMBLY.out)
+    HOSTMITOGENOMEQUALITY(HOSTMITOGENOMEFILTERING.out.host_filtered)
 
 }
 
